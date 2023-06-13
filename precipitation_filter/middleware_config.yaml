@@ -1,0 +1,8 @@
+consumer:
+  exchange_name: precipitation_filter
+  prev_stage_instances_env: PREV_STAGE_INSTANCES
+  route_by_id: true
+producer:
+  exchange_name: duration_averager
+  next_stage_instances_env: NEXT_STAGE_INSTANCES
+  route_by_id: true

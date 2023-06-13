@@ -1,0 +1,12 @@
+trips_consumer:
+  exchange_name: weather_joiner_trips
+  prev_stage_instances_env: DATA_DROPPER_INSTANCES
+  route_by_id: true
+weather_consumer:
+  exchange_name: weather
+  prev_stage_instances_env: CLIENT_HANDLER_INSTANCES
+  route_by_id: false
+producer:
+  exchange_name: precipitation_filter
+  next_stage_instances_env: NEXT_STAGE_INSTANCES
+  route_by_id: true

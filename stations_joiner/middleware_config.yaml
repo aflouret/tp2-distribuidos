@@ -1,0 +1,16 @@
+trips_consumer:
+  exchange_name: stations_joiner_trips
+  prev_stage_instances_env: DATA_DROPPER_INSTANCES
+  route_by_id: true
+stations_consumer:
+  exchange_name: stations
+  prev_stage_instances_env: CLIENT_HANDLER_INSTANCES
+  route_by_id: false
+year_filter_producer:
+  exchange_name: year_filter
+  next_stage_instances_env: YEAR_FILTER_INSTANCES
+  route_by_id: true
+distance_calculator_producer:
+  exchange_name: distance_calculator
+  next_stage_instances_env: DISTANCE_CALCULATOR_INSTANCES
+  route_by_id: true

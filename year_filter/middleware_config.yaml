@@ -1,0 +1,8 @@
+consumer:
+  exchange_name: year_filter
+  prev_stage_instances_env: PREV_STAGE_INSTANCES
+  route_by_id: true
+producer:
+  exchange_name: trip_counter
+  next_stage_instances_env: NEXT_STAGE_INSTANCES
+  route_by_id: true

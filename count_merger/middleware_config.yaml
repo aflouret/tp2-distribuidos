@@ -1,0 +1,8 @@
+consumer:
+  exchange_name: count_merger
+  prev_stage_instances_env: PREV_STAGE_INSTANCES
+  route_by_id: false
+producer:
+  exchange_name: results
+  next_stage_instances_env: NEXT_STAGE_INSTANCES
+  route_by_id: false
