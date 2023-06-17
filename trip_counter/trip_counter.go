@@ -9,26 +9,31 @@ import (
 )
 
 const (
-	startStationNameIndex = iota
+	yearIndex = iota
+	startStationNameIndex
 )
 
 type TripCounter struct {
-	producer       *middleware.Producer
-	consumer       *middleware.Consumer
-	countByStation map[string]int
-	year           string
-	msgCount       int
-	startTime      time.Time
+	producer            *middleware.Producer
+	consumer            *middleware.Consumer
+	year1               string
+	year2               string
+	countByStationYear1 map[string]int
+	countByStationYear2 map[string]int
+	msgCount            int
+	startTime           time.Time
 }
 
-func NewTripCounter(year string, consumer *middleware.Consumer, producer *middleware.Producer) *TripCounter {
-	countByStation := make(map[string]int)
-
+func NewTripCounter(year1 string, year2 string, consumer *middleware.Consumer, producer *middleware.Producer) *TripCounter {
+	countByStationYear1 := make(map[string]int)
+	countByStationYear2 := make(map[string]int)
 	return &TripCounter{
-		producer:       producer,
-		consumer:       consumer,
-		countByStation: countByStation,
-		year:           year,
+		producer:            producer,
+		consumer:            consumer,
+		countByStationYear1: countByStationYear1,
+		countByStationYear2: countByStationYear2,
+		year1:               year1,
+		year2:               year2,
 	}
 }
 
@@ -59,18 +64,32 @@ func (a *TripCounter) processMessage(msg message.Message) {
 func (a *TripCounter) updateCount(trips []string) {
 	for _, trip := range trips {
 		fields := strings.Split(trip, ",")
+		year := fields[yearIndex]
 		startStationName := fields[startStationNameIndex]
-		if c, ok := a.countByStation[startStationName]; ok {
-			a.countByStation[startStationName] = c + 1
-		} else {
-			a.countByStation[startStationName] = 1
+		if year == a.year1 {
+			if c, ok := a.countByStationYear1[startStationName]; ok {
+				a.countByStationYear1[startStationName] = c + 1
+			} else {
+				a.countByStationYear1[startStationName] = 1
+			}
+		} else if year == a.year2 {
+			if c, ok := a.countByStationYear2[startStationName]; ok {
+				a.countByStationYear2[startStationName] = c + 1
+			} else {
+				a.countByStationYear2[startStationName] = 1
+			}
 		}
 	}
 }
 
 func (a *TripCounter) sendResults() {
-	for k, v := range a.countByStation {
-		result := fmt.Sprintf("%s,%s,%v", a.year, k, v)
+	for k, v := range a.countByStationYear1 {
+		result := fmt.Sprintf("%s,%s,%v", a.year1, k, v)
+		msg := message.NewTripsBatchMessage("", "", []string{result})
+		a.producer.PublishMessage(msg, "")
+	}
+	for k, v := range a.countByStationYear2 {
+		result := fmt.Sprintf("%s,%s,%v", a.year2, k, v)
 		msg := message.NewTripsBatchMessage("", "", []string{result})
 		a.producer.PublishMessage(msg, "")
 	}

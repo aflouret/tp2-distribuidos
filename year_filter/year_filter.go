@@ -50,37 +50,28 @@ func (f *YearFilter) processMessage(msg message.Message) {
 		fmt.Printf("Time: %s Received batch %v\n", time.Since(f.startTime).String(), msg.ID)
 	}
 
-	filteredTripsYear1, filteredTripsYear2 := f.filter(trips)
+	filteredTrips := f.filter(trips)
 
-	if len(filteredTripsYear1) > 0 {
-		filteredTripsBatch := message.NewTripsBatchMessage(msg.ID, "", filteredTripsYear1)
-		f.producer.PublishMessage(filteredTripsBatch, f.year1)
-	}
+	if len(filteredTrips) > 0 {
+		filteredTripsBatch := message.NewTripsBatchMessage(msg.ID, "", filteredTrips)
 
-	if len(filteredTripsYear2) > 0 {
-		filteredTripsBatch := message.NewTripsBatchMessage(msg.ID, "", filteredTripsYear2)
-		f.producer.PublishMessage(filteredTripsBatch, f.year2)
+		f.producer.PublishMessage(filteredTripsBatch, "")
 	}
 
 	f.msgCount++
 }
 
-func (f *YearFilter) filter(trips []string) ([]string, []string) {
-	filteredTripsYear1 := make([]string, 0, len(trips))
-	filteredTripsYear2 := make([]string, 0, len(trips))
+func (f *YearFilter) filter(trips []string) []string {
+	filteredTrips := make([]string, 0, len(trips))
 
 	for _, trip := range trips {
 		fields := strings.Split(trip, ",")
 		year := fields[yearIndex]
-		if year == f.year1 {
+		if year == f.year1 || year == f.year2 {
 			startStationName := fields[startStationNameIndex]
-			filteredTrip := startStationName
-			filteredTripsYear1 = append(filteredTripsYear1, filteredTrip)
-		} else if year == f.year2 {
-			startStationName := fields[startStationNameIndex]
-			filteredTrip := startStationName
-			filteredTripsYear2 = append(filteredTripsYear2, filteredTrip)
+			filteredTrip := year + "," + startStationName
+			filteredTrips = append(filteredTrips, filteredTrip)
 		}
 	}
-	return filteredTripsYear1, filteredTripsYear2
+	return filteredTrips
 }

@@ -232,39 +232,15 @@ for i in range(0, year_filter_instances):
         target: /middleware_config.yaml
 ''' 
 
-trip_counter_string_year1 = ""
+trip_counter_string = ""
 for i in range(0, trip_counter_instances):
-    trip_counter_string_year1 = trip_counter_string_year1 + f'''
-  trip_counter_year_1_{i}:
-    container_name: trip_counter_year_1_{i}
+    trip_counter_string = trip_counter_string + f'''
+  trip_counter_{i}:
+    container_name: trip_counter_{i}
     environment:
       - ID={i}
-      - YEAR={year_1}
-      - PREV_STAGE_INSTANCES={year_filter_instances}
-      - NEXT_STAGE_INSTANCES=1
-      - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
-    build:
-      context: .
-      dockerfile: ./trip_counter/Dockerfile
-    entrypoint: /trip_counter
-    restart: on-failure
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    volumes:
-      - type: bind
-        source: ./trip_counter/middleware_config.yaml
-        target: /middleware_config.yaml
-'''   
-
-trip_counter_string_year2 = ""
-for i in range(0, trip_counter_instances):
-    trip_counter_string_year2 = trip_counter_string_year2 + f'''
-  trip_counter_year_2_{i}:
-    container_name: trip_counter_year_2_{i}
-    environment:
-      - ID={i}
-      - YEAR={year_2}
+      - YEAR_1={year_1}
+      - YEAR_2={year_2}
       - PREV_STAGE_INSTANCES={year_filter_instances}
       - NEXT_STAGE_INSTANCES=1
       - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
@@ -357,7 +333,7 @@ file_content = f'''services:
   count_merger:
     container_name: count_merger
     environment:
-      - PREV_STAGE_INSTANCES={int(trip_counter_instances*2)}
+      - PREV_STAGE_INSTANCES={trip_counter_instances}
       - NEXT_STAGE_INSTANCES={client_handler_instances}
       - YEAR_1={year_1}
       - YEAR_2={year_2}
@@ -401,8 +377,7 @@ file_content = f'''services:
 {data_dropper_string} 
 {stations_joiner_string}
 {year_filter_string}
-{trip_counter_string_year1}  
-{trip_counter_string_year2}  
+{trip_counter_string}
 {distance_calculator_string}
 {distance_averager_string}
 '''

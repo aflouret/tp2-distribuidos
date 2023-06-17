@@ -158,6 +158,9 @@ func (h *ClientHandler) handleResults(conn net.Conn) {
 	tripsEOF := message.NewTripsEOFMessage("1")
 	h.tripsProducer.PublishMessage(tripsEOF, "")
 	h.resultsConsumer.Consume(func(msg message.Message) {
+		if msg.IsEOF() {
+			return
+		}
 		protocol.Send(conn, protocol.NewDataMessage(msg.Batch[0]))
 	})
 

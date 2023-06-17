@@ -157,8 +157,10 @@ func (c *Consumer) Consume(processMessage func(message.Message)) {
 				if c.eofsReceived == c.config.previousStageInstances {
 					fmt.Println("Received all eofs")
 					processMessage(msg)
+					delivery.Ack(false)
 					return
 				}
+				delivery.Ack(false)
 				continue
 			}
 			processMessage(msg)

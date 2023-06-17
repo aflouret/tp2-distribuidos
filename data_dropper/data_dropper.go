@@ -65,7 +65,7 @@ func (d *DataDropper) processMessage(msg message.Message) {
 	d.stationsJoinerProducer.PublishMessage(stationsJoinerMessage, "")
 
 	if d.msgCount%20000 == 0 {
-		fmt.Printf("Time: %s Received batch %v\n", time.Since(d.startTime).String(), msg)
+		fmt.Printf("Time: %s Received batch %v\n", time.Since(d.startTime).String(), msg.ID)
 	}
 	d.msgCount++
 }
