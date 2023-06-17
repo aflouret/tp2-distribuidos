@@ -1,8 +1,7 @@
 services:
   rabbitmq:
     container_name: rabbitmq
-    build:
-      context: ./rabbitmq
+    image: rabbitmq:latest
     ports:
       - 5672:5672
       - 15672:15672
@@ -16,13 +15,11 @@ services:
     container_name: client_handler
     environment:
       - MERGER_INSTANCES=3
-      - DATA_DROPPER_INSTANCES=1
-      - WEATHER_JOINER_INSTANCES=1
-      - STATIONS_JOINER_INSTANCES=1
+      - DATA_DROPPER_INSTANCES=4
+      - WEATHER_JOINER_INSTANCES=4
+      - STATIONS_JOINER_INSTANCES=3
       - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
-    build:
-      context: .
-      dockerfile: ./client_handler/Dockerfile
+    image: client_handler:latest
     entrypoint: /client_handler
     restart: on-failure
     depends_on:
@@ -35,9 +32,7 @@ services:
 
   client:
     container_name: client
-    build:
-      context: .
-      dockerfile: ./client/Dockerfile
+    image: client:latest
     entrypoint: /client
     restart: on-failure
     depends_on:
@@ -56,9 +51,7 @@ services:
       - PREV_STAGE_INSTANCES=1
       - NEXT_STAGE_INSTANCES=1
       - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
-    build:
-      context: .
-      dockerfile: ./duration_merger/Dockerfile
+    image: duration_merger:latest
     entrypoint: /duration_merger
     restart: on-failure
     depends_on:
@@ -72,14 +65,12 @@ services:
   count_merger:
     container_name: count_merger
     environment:
-      - PREV_STAGE_INSTANCES=1
+      - PREV_STAGE_INSTANCES=4
       - NEXT_STAGE_INSTANCES=1
       - YEAR_1=2016
       - YEAR_2=2017
       - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
-    build:
-      context: .
-      dockerfile: ./count_merger/Dockerfile
+    image: count_merger:latest
     entrypoint: /count_merger
     restart: on-failure
     depends_on:
@@ -93,13 +84,11 @@ services:
   distance_merger:
     container_name: distance_merger
     environment:
-      - PREV_STAGE_INSTANCES=1
+      - PREV_STAGE_INSTANCES=3
       - NEXT_STAGE_INSTANCES=1
       - MIN_DISTANCE=6
       - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
-    build:
-      context: .
-      dockerfile: ./distance_merger/Dockerfile
+    image: distance_merger:latest
     entrypoint: /distance_merger
     restart: on-failure
     depends_on:
@@ -115,12 +104,10 @@ services:
     container_name: duration_averager_0
     environment:
       - ID=0
-      - PREV_STAGE_INSTANCES=1
+      - PREV_STAGE_INSTANCES=3
       - NEXT_STAGE_INSTANCES=1
       - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
-    build:
-      context: .
-      dockerfile: ./duration_averager/Dockerfile
+    image: duration_averager:latest
     entrypoint: /duration_averager
     restart: on-failure
     depends_on:
@@ -136,13 +123,49 @@ services:
     container_name: precipitation_filter_0
     environment:
       - ID=0
-      - PREV_STAGE_INSTANCES=1
+      - PREV_STAGE_INSTANCES=4
       - NEXT_STAGE_INSTANCES=1
       - MIN_PRECIPITATIONS=30
       - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
-    build:
-      context: .
-      dockerfile: ./precipitation_filter/Dockerfile
+    image: precipitation_filter:latest
+    entrypoint: /precipitation_filter
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./precipitation_filter/middleware_config.yaml
+        target: /middleware_config.yaml
+
+  precipitation_filter_1:
+    container_name: precipitation_filter_1
+    environment:
+      - ID=1
+      - PREV_STAGE_INSTANCES=4
+      - NEXT_STAGE_INSTANCES=1
+      - MIN_PRECIPITATIONS=30
+      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
+    image: precipitation_filter:latest
+    entrypoint: /precipitation_filter
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./precipitation_filter/middleware_config.yaml
+        target: /middleware_config.yaml
+
+  precipitation_filter_2:
+    container_name: precipitation_filter_2
+    environment:
+      - ID=2
+      - PREV_STAGE_INSTANCES=4
+      - NEXT_STAGE_INSTANCES=1
+      - MIN_PRECIPITATIONS=30
+      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
+    image: precipitation_filter:latest
     entrypoint: /precipitation_filter
     restart: on-failure
     depends_on:
@@ -159,12 +182,67 @@ services:
     environment:
       - ID=0
       - CLIENT_HANDLER_INSTANCES=1
-      - DATA_DROPPER_INSTANCES=1
-      - NEXT_STAGE_INSTANCES=1
+      - DATA_DROPPER_INSTANCES=4
+      - NEXT_STAGE_INSTANCES=3
       - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
-    build:
-      context: .
-      dockerfile: ./weather_joiner/Dockerfile
+    image: weather_joiner:latest
+    entrypoint: /weather_joiner
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./weather_joiner/middleware_config.yaml
+        target: /middleware_config.yaml
+
+  weather_joiner_1:
+    container_name: weather_joiner_1
+    environment:
+      - ID=1
+      - CLIENT_HANDLER_INSTANCES=1
+      - DATA_DROPPER_INSTANCES=4
+      - NEXT_STAGE_INSTANCES=3
+      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
+    image: weather_joiner:latest
+    entrypoint: /weather_joiner
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./weather_joiner/middleware_config.yaml
+        target: /middleware_config.yaml
+
+  weather_joiner_2:
+    container_name: weather_joiner_2
+    environment:
+      - ID=2
+      - CLIENT_HANDLER_INSTANCES=1
+      - DATA_DROPPER_INSTANCES=4
+      - NEXT_STAGE_INSTANCES=3
+      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
+    image: weather_joiner:latest
+    entrypoint: /weather_joiner
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./weather_joiner/middleware_config.yaml
+        target: /middleware_config.yaml
+
+  weather_joiner_3:
+    container_name: weather_joiner_3
+    environment:
+      - ID=3
+      - CLIENT_HANDLER_INSTANCES=1
+      - DATA_DROPPER_INSTANCES=4
+      - NEXT_STAGE_INSTANCES=3
+      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
+    image: weather_joiner:latest
     entrypoint: /weather_joiner
     restart: on-failure
     depends_on:
@@ -181,12 +259,67 @@ services:
     environment:
       - ID=0
       - PREV_STAGE_INSTANCES=1
-      - WEATHER_JOINER_INSTANCES=1
-      - STATIONS_JOINER_INSTANCES=1
+      - WEATHER_JOINER_INSTANCES=4
+      - STATIONS_JOINER_INSTANCES=3
       - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
-    build:
-      context: .
-      dockerfile: ./data_dropper/Dockerfile
+    image: data_dropper:latest
+    entrypoint: /data_dropper
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./data_dropper/middleware_config.yaml
+        target: /middleware_config.yaml
+
+  data_dropper_1:
+    container_name: data_dropper_1
+    environment:
+      - ID=1
+      - PREV_STAGE_INSTANCES=1
+      - WEATHER_JOINER_INSTANCES=4
+      - STATIONS_JOINER_INSTANCES=3
+      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
+    image: data_dropper:latest
+    entrypoint: /data_dropper
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./data_dropper/middleware_config.yaml
+        target: /middleware_config.yaml
+
+  data_dropper_2:
+    container_name: data_dropper_2
+    environment:
+      - ID=2
+      - PREV_STAGE_INSTANCES=1
+      - WEATHER_JOINER_INSTANCES=4
+      - STATIONS_JOINER_INSTANCES=3
+      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
+    image: data_dropper:latest
+    entrypoint: /data_dropper
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./data_dropper/middleware_config.yaml
+        target: /middleware_config.yaml
+
+  data_dropper_3:
+    container_name: data_dropper_3
+    environment:
+      - ID=3
+      - PREV_STAGE_INSTANCES=1
+      - WEATHER_JOINER_INSTANCES=4
+      - STATIONS_JOINER_INSTANCES=3
+      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
+    image: data_dropper:latest
     entrypoint: /data_dropper
     restart: on-failure
     depends_on:
@@ -203,13 +336,51 @@ services:
     environment:
       - ID=0
       - CLIENT_HANDLER_INSTANCES=1
-      - DATA_DROPPER_INSTANCES=1
-      - YEAR_FILTER_INSTANCES=1
-      - DISTANCE_CALCULATOR_INSTANCES=1
+      - DATA_DROPPER_INSTANCES=4
+      - YEAR_FILTER_INSTANCES=3
+      - DISTANCE_CALCULATOR_INSTANCES=3
       - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
-    build:
-      context: .
-      dockerfile: ./stations_joiner/Dockerfile
+    image: stations_joiner:latest
+    entrypoint: /stations_joiner
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./stations_joiner/middleware_config.yaml
+        target: /middleware_config.yaml
+
+  stations_joiner_1:
+    container_name: stations_joiner_1
+    environment:
+      - ID=1
+      - CLIENT_HANDLER_INSTANCES=1
+      - DATA_DROPPER_INSTANCES=4
+      - YEAR_FILTER_INSTANCES=3
+      - DISTANCE_CALCULATOR_INSTANCES=3
+      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
+    image: stations_joiner:latest
+    entrypoint: /stations_joiner
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./stations_joiner/middleware_config.yaml
+        target: /middleware_config.yaml
+
+  stations_joiner_2:
+    container_name: stations_joiner_2
+    environment:
+      - ID=2
+      - CLIENT_HANDLER_INSTANCES=1
+      - DATA_DROPPER_INSTANCES=4
+      - YEAR_FILTER_INSTANCES=3
+      - DISTANCE_CALCULATOR_INSTANCES=3
+      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
+    image: stations_joiner:latest
     entrypoint: /stations_joiner
     restart: on-failure
     depends_on:
@@ -225,14 +396,52 @@ services:
     container_name: year_filter_0
     environment:
       - ID=0
-      - PREV_STAGE_INSTANCES=1
-      - NEXT_STAGE_INSTANCES=1
+      - PREV_STAGE_INSTANCES=3
+      - NEXT_STAGE_INSTANCES=2
       - YEAR_1=2016
       - YEAR_2=2017
       - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
-    build:
-      context: .
-      dockerfile: ./year_filter/Dockerfile
+    image: year_filter:latest
+    entrypoint: /year_filter
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./year_filter/middleware_config.yaml
+        target: /middleware_config.yaml
+
+  year_filter_1:
+    container_name: year_filter_1
+    environment:
+      - ID=1
+      - PREV_STAGE_INSTANCES=3
+      - NEXT_STAGE_INSTANCES=2
+      - YEAR_1=2016
+      - YEAR_2=2017
+      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
+    image: year_filter:latest
+    entrypoint: /year_filter
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./year_filter/middleware_config.yaml
+        target: /middleware_config.yaml
+
+  year_filter_2:
+    container_name: year_filter_2
+    environment:
+      - ID=2
+      - PREV_STAGE_INSTANCES=3
+      - NEXT_STAGE_INSTANCES=2
+      - YEAR_1=2016
+      - YEAR_2=2017
+      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
+    image: year_filter:latest
     entrypoint: /year_filter
     restart: on-failure
     depends_on:
@@ -244,18 +453,15 @@ services:
         target: /middleware_config.yaml
 
 
-  trip_counter_0:
-    container_name: trip_counter_0
+  trip_counter_year_1_0:
+    container_name: trip_counter_year_1_0
     environment:
       - ID=0
-      - YEAR_1=2016
-      - YEAR_2=2017
-      - PREV_STAGE_INSTANCES=1
+      - YEAR=2016
+      - PREV_STAGE_INSTANCES=3
       - NEXT_STAGE_INSTANCES=1
       - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
-    build:
-      context: .
-      dockerfile: ./trip_counter/Dockerfile
+    image: trip_counter:latest
     entrypoint: /trip_counter
     restart: on-failure
     depends_on:
@@ -266,17 +472,109 @@ services:
         source: ./trip_counter/middleware_config.yaml
         target: /middleware_config.yaml
 
+  trip_counter_year_1_1:
+    container_name: trip_counter_year_1_1
+    environment:
+      - ID=1
+      - YEAR=2016
+      - PREV_STAGE_INSTANCES=3
+      - NEXT_STAGE_INSTANCES=1
+      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
+    image: trip_counter:latest
+    entrypoint: /trip_counter
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./trip_counter/middleware_config.yaml
+        target: /middleware_config.yaml
+  
+
+  trip_counter_year_2_0:
+    container_name: trip_counter_year_2_0
+    environment:
+      - ID=0
+      - YEAR=2017
+      - PREV_STAGE_INSTANCES=3
+      - NEXT_STAGE_INSTANCES=1
+      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
+    image: trip_counter:latest
+    entrypoint: /trip_counter
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./trip_counter/middleware_config.yaml
+        target: /middleware_config.yaml
+
+  trip_counter_year_2_1:
+    container_name: trip_counter_year_2_1
+    environment:
+      - ID=1
+      - YEAR=2017
+      - PREV_STAGE_INSTANCES=3
+      - NEXT_STAGE_INSTANCES=1
+      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
+    image: trip_counter:latest
+    entrypoint: /trip_counter
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./trip_counter/middleware_config.yaml
+        target: /middleware_config.yaml
+  
 
   distance_calculator_0:
     container_name: distance_calculator_0
     environment:
       - ID=0
-      - PREV_STAGE_INSTANCES=1
-      - NEXT_STAGE_INSTANCES=1
+      - PREV_STAGE_INSTANCES=3
+      - NEXT_STAGE_INSTANCES=3
       - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
-    build:
-      context: .
-      dockerfile: ./distance_calculator/Dockerfile
+    image: distance_calculator:latest
+    entrypoint: /distance_calculator
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./distance_calculator/middleware_config.yaml
+        target: /middleware_config.yaml
+
+  distance_calculator_1:
+    container_name: distance_calculator_1
+    environment:
+      - ID=1
+      - PREV_STAGE_INSTANCES=3
+      - NEXT_STAGE_INSTANCES=3
+      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
+    image: distance_calculator:latest
+    entrypoint: /distance_calculator
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./distance_calculator/middleware_config.yaml
+        target: /middleware_config.yaml
+
+  distance_calculator_2:
+    container_name: distance_calculator_2
+    environment:
+      - ID=2
+      - PREV_STAGE_INSTANCES=3
+      - NEXT_STAGE_INSTANCES=3
+      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
+    image: distance_calculator:latest
     entrypoint: /distance_calculator
     restart: on-failure
     depends_on:
@@ -292,12 +590,46 @@ services:
     container_name: distance_averager_0
     environment:
       - ID=0
-      - PREV_STAGE_INSTANCES=1
+      - PREV_STAGE_INSTANCES=3
       - NEXT_STAGE_INSTANCES=1
       - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
-    build:
-      context: .
-      dockerfile: ./distance_averager/Dockerfile
+    image: distance_averager:latest
+    entrypoint: /distance_averager
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./distance_averager/middleware_config.yaml
+        target: /middleware_config.yaml
+
+  distance_averager_1:
+    container_name: distance_averager_1
+    environment:
+      - ID=1
+      - PREV_STAGE_INSTANCES=3
+      - NEXT_STAGE_INSTANCES=1
+      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
+    image: distance_averager:latest
+    entrypoint: /distance_averager
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./distance_averager/middleware_config.yaml
+        target: /middleware_config.yaml
+
+  distance_averager_2:
+    container_name: distance_averager_2
+    environment:
+      - ID=2
+      - PREV_STAGE_INSTANCES=3
+      - NEXT_STAGE_INSTANCES=1
+      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
+    image: distance_averager:latest
     entrypoint: /distance_averager
     restart: on-failure
     depends_on:

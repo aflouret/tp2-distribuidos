@@ -42,9 +42,7 @@ for i in range(0, data_dropper_instances):
       - WEATHER_JOINER_INSTANCES={weather_joiner_instances}
       - STATIONS_JOINER_INSTANCES={stations_joiner_instances}
       - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
-    build:
-      context: .
-      dockerfile: ./data_dropper/Dockerfile
+    image: data_dropper:latest
     entrypoint: /data_dropper
     restart: on-failure
     depends_on:
@@ -68,9 +66,7 @@ for i in range(0, weather_joiner_instances):
       - DATA_DROPPER_INSTANCES={data_dropper_instances}
       - NEXT_STAGE_INSTANCES={precipitation_filter_instances}
       - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
-    build:
-      context: .
-      dockerfile: ./weather_joiner/Dockerfile
+    image: weather_joiner:latest
     entrypoint: /weather_joiner
     restart: on-failure
     depends_on:
@@ -95,9 +91,7 @@ for i in range(0, stations_joiner_instances):
       - YEAR_FILTER_INSTANCES={year_filter_instances}
       - DISTANCE_CALCULATOR_INSTANCES={distance_calculator_instances}
       - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
-    build:
-      context: .
-      dockerfile: ./stations_joiner/Dockerfile
+    image: stations_joiner:latest
     entrypoint: /stations_joiner
     restart: on-failure
     depends_on:
@@ -120,9 +114,7 @@ for i in range(0, precipitation_filter_instances):
       - NEXT_STAGE_INSTANCES={duration_averager_instances}
       - MIN_PRECIPITATIONS={minimum_precipitations}
       - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
-    build:
-      context: .
-      dockerfile: ./precipitation_filter/Dockerfile
+    image: precipitation_filter:latest
     entrypoint: /precipitation_filter
     restart: on-failure
     depends_on:
@@ -144,9 +136,7 @@ for i in range(0, distance_calculator_instances):
       - PREV_STAGE_INSTANCES={stations_joiner_instances}
       - NEXT_STAGE_INSTANCES={distance_averager_instances}
       - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
-    build:
-      context: .
-      dockerfile: ./distance_calculator/Dockerfile
+    image: distance_calculator:latest
     entrypoint: /distance_calculator
     restart: on-failure
     depends_on:
@@ -168,9 +158,7 @@ for i in range(0, duration_averager_instances):
       - PREV_STAGE_INSTANCES={precipitation_filter_instances}
       - NEXT_STAGE_INSTANCES=1
       - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
-    build:
-      context: .
-      dockerfile: ./duration_averager/Dockerfile
+    image: duration_averager:latest
     entrypoint: /duration_averager
     restart: on-failure
     depends_on:
@@ -192,9 +180,7 @@ for i in range(0, distance_averager_instances):
       - PREV_STAGE_INSTANCES={distance_calculator_instances}
       - NEXT_STAGE_INSTANCES=1
       - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
-    build:
-      context: .
-      dockerfile: ./distance_averager/Dockerfile
+    image: distance_averager:latest
     entrypoint: /distance_averager
     restart: on-failure
     depends_on:
@@ -218,9 +204,7 @@ for i in range(0, year_filter_instances):
       - YEAR_1={year_1}
       - YEAR_2={year_2}
       - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
-    build:
-      context: .
-      dockerfile: ./year_filter/Dockerfile
+    image: year_filter:latest
     entrypoint: /year_filter
     restart: on-failure
     depends_on:
@@ -244,9 +228,7 @@ for i in range(0, trip_counter_instances):
       - PREV_STAGE_INSTANCES={year_filter_instances}
       - NEXT_STAGE_INSTANCES=1
       - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
-    build:
-      context: .
-      dockerfile: ./trip_counter/Dockerfile
+    image: trip_counter:latest
     entrypoint: /trip_counter
     restart: on-failure
     depends_on:
@@ -262,8 +244,7 @@ for i in range(0, trip_counter_instances):
 file_content = f'''services:
   rabbitmq:
     container_name: rabbitmq
-    build:
-      context: ./rabbitmq
+    image: rabbitmq:latest
     ports:
       - 5672:5672
       - 15672:15672
@@ -281,9 +262,7 @@ file_content = f'''services:
       - WEATHER_JOINER_INSTANCES={weather_joiner_instances}
       - STATIONS_JOINER_INSTANCES={stations_joiner_instances}
       - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
-    build:
-      context: .
-      dockerfile: ./client_handler/Dockerfile
+    image: client_handler:latest
     entrypoint: /client_handler
     restart: on-failure
     depends_on:
@@ -296,9 +275,7 @@ file_content = f'''services:
 
   client:
     container_name: client
-    build:
-      context: .
-      dockerfile: ./client/Dockerfile
+    image: client:latest
     entrypoint: /client
     restart: on-failure
     depends_on:
@@ -317,9 +294,7 @@ file_content = f'''services:
       - PREV_STAGE_INSTANCES={duration_averager_instances}
       - NEXT_STAGE_INSTANCES={client_handler_instances}
       - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
-    build:
-      context: .
-      dockerfile: ./duration_merger/Dockerfile
+    image: duration_merger:latest
     entrypoint: /duration_merger
     restart: on-failure
     depends_on:
@@ -338,9 +313,7 @@ file_content = f'''services:
       - YEAR_1={year_1}
       - YEAR_2={year_2}
       - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
-    build:
-      context: .
-      dockerfile: ./count_merger/Dockerfile
+    image: count_merger:latest
     entrypoint: /count_merger
     restart: on-failure
     depends_on:
@@ -358,9 +331,7 @@ file_content = f'''services:
       - NEXT_STAGE_INSTANCES={client_handler_instances}
       - MIN_DISTANCE={minimum_distance}
       - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
-    build:
-      context: .
-      dockerfile: ./distance_merger/Dockerfile
+    image: distance_merger:latest
     entrypoint: /distance_merger
     restart: on-failure
     depends_on:
