@@ -6,12 +6,8 @@ import (
 )
 
 func main() {
-	stationsConsumer, err := middleware.NewConsumer("stations_consumer")
-	if err != nil {
-		log.Fatal(err)
-	}
 
-	tripsConsumer, err := middleware.NewConsumer("trips_consumer")
+	consumer, err := middleware.NewConsumer("consumer")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -26,6 +22,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	stationsJoiner := NewStationsJoiner(tripsConsumer, stationsConsumer, yearFilterProducer, distanceCalculatorProducer)
+	stationsJoiner := NewStationsJoiner(consumer, yearFilterProducer, distanceCalculatorProducer)
 	stationsJoiner.Run()
 }

@@ -42,11 +42,11 @@ func (m *CountMerger) Run() {
 	defer m.producer.Close()
 
 	m.consumer.Consume(m.processMessage)
-	m.sendResults()
 }
 
 func (m *CountMerger) processMessage(msg message.Message) {
 	if msg.IsEOF() {
+		m.sendResults()
 		return
 	}
 

@@ -16,7 +16,7 @@ type Consumer struct {
 	conn           *amqp.Connection
 	ch             *amqp.Channel
 	msgChannel     <-chan amqp.Delivery
-	eofsReceived   int
+	eofsReceived   map[string]int
 	config         ConsumerConfig
 	sigtermChannel chan os.Signal
 }
@@ -38,15 +38,11 @@ func newConsumerConfig(configID string) (ConsumerConfig, error) {
 	}
 	exchangeName := v.GetString(fmt.Sprintf("%s.exchange_name", configID))
 	routeByID := v.GetBool(fmt.Sprintf("%s.route_by_id", configID))
-	routingKeyEnv := v.GetString(fmt.Sprintf("%s.routing_key_env", configID))
+	routingKey := v.GetString(fmt.Sprintf("%s.routing_key", configID))
 	previousStageInstancesEnv := v.GetString(fmt.Sprintf("%s.prev_stage_instances_env", configID))
 	previousStageInstances, err := strconv.Atoi(os.Getenv(previousStageInstancesEnv))
 	if err != nil {
 		previousStageInstances = 1
-	}
-	routingKey := ""
-	if routingKeyEnv != "" {
-		routingKey = os.Getenv(routingKeyEnv)
 	}
 	instanceID := os.Getenv("ID")
 	connectionString := os.Getenv("RABBITMQ_CONNECTION_STRING")
@@ -89,7 +85,7 @@ func NewConsumer(configID string) (*Consumer, error) {
 	)
 	failOnError(err, "Failed to declare an exchange")
 
-	queueName := config.exchangeName + config.routingKey + config.instanceID
+	queueName := config.exchangeName + config.instanceID
 	q, err := ch.QueueDeclare(
 		queueName, // name
 		false,     // durable
@@ -100,14 +96,19 @@ func NewConsumer(configID string) (*Consumer, error) {
 	)
 	failOnError(err, "Failed to declare a queue")
 
-	routingKey := config.routingKey
-	if config.routeByID {
-		routingKey += config.instanceID
+	if config.routingKey != "" {
+		err = ch.QueueBind(
+			q.Name,              // queue name
+			config.routingKey,   // routing key
+			config.exchangeName, // exchange
+			false,
+			nil)
+		failOnError(err, "Failed to bind a queue")
 	}
 
 	err = ch.QueueBind(
 		q.Name,              // queue name
-		routingKey,          // routing key
+		config.instanceID,   // routing key
 		config.exchangeName, // exchange
 		false,
 		nil)
@@ -134,11 +135,17 @@ func NewConsumer(configID string) (*Consumer, error) {
 
 	sigtermChannel := make(chan os.Signal, 1)
 	signal.Notify(sigtermChannel, syscall.SIGTERM)
+
+	eofsReceived := map[string]int{
+		message.TripsEOF:    0,
+		message.StationsEOF: 0,
+		message.WeatherEOF:  0,
+	}
 	return &Consumer{
 		conn:           conn,
 		ch:             ch,
 		msgChannel:     msgs,
-		eofsReceived:   0,
+		eofsReceived:   eofsReceived,
 		config:         config,
 		sigtermChannel: sigtermChannel,
 	}, nil
@@ -152,13 +159,12 @@ func (c *Consumer) Consume(processMessage func(message.Message)) {
 		case delivery := <-c.msgChannel:
 			msg := message.Deserialize(string(delivery.Body))
 			if msg.IsEOF() {
-				fmt.Printf("Received eof %v\n", c.eofsReceived)
-				c.eofsReceived++
-				if c.eofsReceived == c.config.previousStageInstances {
-					fmt.Println("Received all eofs")
+				c.eofsReceived[msg.MsgType] += 1
+				fmt.Printf("Received %s %v of %v \n", msg.MsgType, c.eofsReceived[msg.MsgType], c.config.previousStageInstances)
+
+				if c.eofsReceived[msg.MsgType] == c.config.previousStageInstances {
+					fmt.Printf("Received all %s eofs\n", msg.MsgType)
 					processMessage(msg)
-					delivery.Ack(false)
-					return
 				}
 				delivery.Ack(false)
 				continue

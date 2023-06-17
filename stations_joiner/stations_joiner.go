@@ -23,23 +23,20 @@ type station struct {
 type StationsJoiner struct {
 	yearFilterProducer         *middleware.Producer
 	distanceCalculatorProducer *middleware.Producer
-	tripsConsumer              *middleware.Consumer
-	stationsConsumer           *middleware.Consumer
+	consumer                   *middleware.Consumer
 	stations                   map[string]station
 	msgCount                   int
 	startTime                  time.Time
 }
 
 func NewStationsJoiner(
-	tripsConsumer *middleware.Consumer,
-	stationsConsumer *middleware.Consumer,
+	consumer *middleware.Consumer,
 	yearFilterProducer *middleware.Producer,
 	distanceCalculatorProducer *middleware.Producer,
 ) *StationsJoiner {
 	stations := make(map[string]station)
 	return &StationsJoiner{
-		tripsConsumer:              tripsConsumer,
-		stationsConsumer:           stationsConsumer,
+		consumer:                   consumer,
 		yearFilterProducer:         yearFilterProducer,
 		distanceCalculatorProducer: distanceCalculatorProducer,
 		stations:                   stations,
@@ -51,13 +48,20 @@ func (j *StationsJoiner) Run() {
 	defer j.yearFilterProducer.Close()
 	defer j.distanceCalculatorProducer.Close()
 
-	j.stationsConsumer.Consume(j.processStationMessage)
-	j.stationsConsumer.Close()
-	j.tripsConsumer.Consume(j.processTripMessage)
-	j.tripsConsumer.Close()
+	j.consumer.Consume(j.processMessage)
+	j.consumer.Close()
 }
 
-func (j *StationsJoiner) processStationMessage(msg message.Message) {
+func (j *StationsJoiner) processMessage(msg message.Message) {
+	switch msg.MsgType {
+	case message.StationsBatch, message.StationsEOF:
+		j.processStationsMessage(msg)
+	case message.TripsBatch, message.TripsEOF:
+		j.processTripsMessage(msg)
+	}
+}
+
+func (j *StationsJoiner) processStationsMessage(msg message.Message) {
 	if msg.IsEOF() {
 		return
 	}
@@ -76,7 +80,7 @@ func (j *StationsJoiner) processStationMessage(msg message.Message) {
 	}
 }
 
-func (j *StationsJoiner) processTripMessage(msg message.Message) {
+func (j *StationsJoiner) processTripsMessage(msg message.Message) {
 	if msg.IsEOF() {
 		j.yearFilterProducer.PublishMessage(msg, "")
 		j.distanceCalculatorProducer.PublishMessage(msg, "")

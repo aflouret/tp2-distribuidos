@@ -43,11 +43,11 @@ func (a *TripCounter) Run() {
 	a.startTime = time.Now()
 
 	a.consumer.Consume(a.processMessage)
-	a.sendResults()
 }
 
 func (a *TripCounter) processMessage(msg message.Message) {
 	if msg.IsEOF() {
+		a.sendResults()
 		return
 	}
 

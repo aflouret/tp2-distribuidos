@@ -15,8 +15,7 @@ const (
 
 type WeatherJoiner struct {
 	producer                   *middleware.Producer
-	tripsConsumer              *middleware.Consumer
-	weatherConsumer            *middleware.Consumer
+	consumer                   *middleware.Consumer
 	precipitationsByDateByCity map[string]map[string]string
 	msgCount                   int
 	startTime                  time.Time
@@ -24,14 +23,12 @@ type WeatherJoiner struct {
 
 func NewWeatherJoiner(
 	producer *middleware.Producer,
-	weatherConsumer *middleware.Consumer,
-	tripsConsumer *middleware.Consumer,
+	consumer *middleware.Consumer,
 ) *WeatherJoiner {
 	precipitationsByDateByCity := make(map[string]map[string]string)
 	return &WeatherJoiner{
 		producer:                   producer,
-		tripsConsumer:              tripsConsumer,
-		weatherConsumer:            weatherConsumer,
+		consumer:                   consumer,
 		precipitationsByDateByCity: precipitationsByDateByCity,
 		startTime:                  time.Now(),
 	}
@@ -40,10 +37,18 @@ func NewWeatherJoiner(
 func (j *WeatherJoiner) Run() {
 	defer j.producer.Close()
 
-	j.weatherConsumer.Consume(j.processWeatherMessage)
-	j.weatherConsumer.Close()
-	j.tripsConsumer.Consume(j.processTripMessage)
-	j.tripsConsumer.Close()
+	j.consumer.Consume(j.processMessage)
+	j.consumer.Close()
+}
+
+func (j *WeatherJoiner) processMessage(msg message.Message) {
+
+	switch msg.MsgType {
+	case message.WeatherBatch, message.WeatherEOF:
+		j.processWeatherMessage(msg)
+	case message.TripsBatch, message.TripsEOF:
+		j.processTripsMessage(msg)
+	}
 }
 
 func (j *WeatherJoiner) processWeatherMessage(msg message.Message) {
@@ -71,7 +76,7 @@ func (j *WeatherJoiner) processWeatherMessage(msg message.Message) {
 	}
 }
 
-func (j *WeatherJoiner) processTripMessage(msg message.Message) {
+func (j *WeatherJoiner) processTripsMessage(msg message.Message) {
 	if msg.IsEOF() {
 		j.producer.PublishMessage(msg, "")
 		return

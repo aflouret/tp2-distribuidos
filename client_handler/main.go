@@ -6,23 +6,15 @@ import (
 )
 
 func main() {
-	resultsConsumer, err := middleware.NewConsumer("results_consumer")
+	resultsConsumer, err := middleware.NewConsumer("consumer")
 	if err != nil {
 		log.Fatal(err)
 	}
-	tripsProducer, err := middleware.NewProducer("trips_producer")
-	if err != nil {
-		log.Fatal(err)
-	}
-	stationsProducer, err := middleware.NewProducer("stations_producer")
-	if err != nil {
-		log.Fatal(err)
-	}
-	weatherProducer, err := middleware.NewProducer("weather_producer")
+	producer, err := middleware.NewProducer("producer")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	clientHandler := NewClientHandler(tripsProducer, stationsProducer, weatherProducer, resultsConsumer)
+	clientHandler := NewClientHandler(producer, resultsConsumer)
 	clientHandler.Run()
 }

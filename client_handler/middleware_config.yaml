@@ -1,16 +1,8 @@
-results_consumer:
+consumer:
   exchange_name: results
   prev_stage_instances_env: MERGER_INSTANCES
   route_by_id: false
-trips_producer:
+producer:
   exchange_name: data_dropper
   next_stage_instances_env: DATA_DROPPER_INSTANCES
   route_by_id: true
-stations_producer:
-  exchange_name: stations
-  next_stage_instances_env: STATIONS_JOINER_INSTANCES
-  route_by_id: false
-weather_producer:
-  exchange_name: weather
-  next_stage_instances_env: WEATHER_JOINER_INSTANCES
-  route_by_id: false

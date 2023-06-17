@@ -46,6 +46,25 @@ func (d *DataDropper) Run() {
 }
 
 func (d *DataDropper) processMessage(msg message.Message) {
+
+	switch msg.MsgType {
+	case message.StationsBatch, message.StationsEOF:
+		d.processStationsMessage(msg)
+	case message.WeatherBatch, message.WeatherEOF:
+		d.processWeatherMessage(msg)
+	case message.TripsBatch, message.TripsEOF:
+		d.processTripsMessage(msg)
+	}
+}
+func (d *DataDropper) processWeatherMessage(msg message.Message) {
+	d.weatherJoinerProducer.PublishMessage(msg, "weather")
+}
+
+func (d *DataDropper) processStationsMessage(msg message.Message) {
+	d.stationsJoinerProducer.PublishMessage(msg, "stations")
+}
+
+func (d *DataDropper) processTripsMessage(msg message.Message) {
 	if msg.IsEOF() {
 		d.stationsJoinerProducer.PublishMessage(msg, "")
 		d.weatherJoinerProducer.PublishMessage(msg, "")

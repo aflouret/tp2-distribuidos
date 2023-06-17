@@ -43,11 +43,11 @@ func (a *DurationAverager) Run() {
 
 	a.startTime = time.Now()
 	a.consumer.Consume(a.processMessage)
-	a.sendResults()
 }
 
 func (a *DurationAverager) processMessage(msg message.Message) {
 	if msg.IsEOF() {
+		a.sendResults()
 		return
 	}
 

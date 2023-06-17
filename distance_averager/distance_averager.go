@@ -43,11 +43,11 @@ func (a *DistanceAverager) Run() {
 
 	a.startTime = time.Now()
 	a.consumer.Consume(a.processMessage)
-	a.sendResults()
 }
 
 func (a *DistanceAverager) processMessage(msg message.Message) {
 	if msg.IsEOF() {
+		a.sendResults()
 		return
 	}
 

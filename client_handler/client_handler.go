@@ -15,28 +15,22 @@ import (
 )
 
 type ClientHandler struct {
-	tripsProducer    *middleware.Producer
-	stationsProducer *middleware.Producer
-	weatherProducer  *middleware.Producer
-	resultsConsumer  *middleware.Consumer
-	sigtermNotifier  chan os.Signal
+	tripsProducer   *middleware.Producer
+	resultsConsumer *middleware.Consumer
+	sigtermNotifier chan os.Signal
 }
 
 func NewClientHandler(
 	tripsProducer *middleware.Producer,
-	stationsProducer *middleware.Producer,
-	weatherProducer *middleware.Producer,
 	resultsConsumer *middleware.Consumer,
 ) *ClientHandler {
 	sigtermNotifier := make(chan os.Signal, 1)
 	signal.Notify(sigtermNotifier, syscall.SIGTERM)
 
 	return &ClientHandler{
-		tripsProducer:    tripsProducer,
-		stationsProducer: stationsProducer,
-		weatherProducer:  weatherProducer,
-		resultsConsumer:  resultsConsumer,
-		sigtermNotifier:  sigtermNotifier,
+		tripsProducer:   tripsProducer,
+		resultsConsumer: resultsConsumer,
+		sigtermNotifier: sigtermNotifier,
 	}
 }
 
@@ -90,7 +84,7 @@ func (h *ClientHandler) handleConnection(conn net.Conn) (shouldExit bool) {
 func (h *ClientHandler) handleStations(conn net.Conn, city string) (shouldExit bool) {
 	protocol.Send(conn, protocol.Message{Type: protocol.Ack, Payload: ""})
 	startTime := time.Now()
-	shouldExit = h.readBatchesAndSend(conn, city, h.stationsProducer, protocol.EndStations, message.StationsBatch, startTime)
+	shouldExit = h.readBatchesAndSend(conn, city, protocol.EndStations, message.StationsBatch, startTime)
 	fmt.Printf("Time: %s Finished receiving stations from %s\n", time.Since(startTime).String(), city)
 	return
 }
@@ -98,7 +92,7 @@ func (h *ClientHandler) handleStations(conn net.Conn, city string) (shouldExit b
 func (h *ClientHandler) handleWeather(conn net.Conn, city string) (shouldExit bool) {
 	protocol.Send(conn, protocol.Message{Type: protocol.Ack, Payload: ""})
 	startTime := time.Now()
-	shouldExit = h.readBatchesAndSend(conn, city, h.weatherProducer, protocol.EndWeather, message.WeatherBatch, startTime)
+	shouldExit = h.readBatchesAndSend(conn, city, protocol.EndWeather, message.WeatherBatch, startTime)
 	fmt.Printf("Time: %s Finished receiving weather from %s\n", time.Since(startTime).String(), city)
 	return
 }
@@ -106,12 +100,12 @@ func (h *ClientHandler) handleWeather(conn net.Conn, city string) (shouldExit bo
 func (h *ClientHandler) handleTrips(conn net.Conn, city string) (shouldExit bool) {
 	protocol.Send(conn, protocol.Message{Type: protocol.Ack, Payload: ""})
 	startTime := time.Now()
-	shouldExit = h.readBatchesAndSend(conn, city, h.tripsProducer, protocol.EndTrips, message.TripsBatch, startTime)
+	shouldExit = h.readBatchesAndSend(conn, city, protocol.EndTrips, message.TripsBatch, startTime)
 	fmt.Printf("Time: %s Finished receiving trips from %s\n", time.Since(startTime).String(), city)
 	return
 }
 
-func (h *ClientHandler) readBatchesAndSend(conn net.Conn, city string, producer *middleware.Producer, endMessageType uint8, batchMessageType string, startTime time.Time) (shouldExit bool) {
+func (h *ClientHandler) readBatchesAndSend(conn net.Conn, city string, endMessageType uint8, batchMessageType string, startTime time.Time) (shouldExit bool) {
 	batchCounter := 0
 	for {
 		select {
@@ -137,7 +131,7 @@ func (h *ClientHandler) readBatchesAndSend(conn net.Conn, city string, producer 
 		id := strconv.Itoa(batchCounter)
 		lines := strings.Split(msg.Payload, ";")
 		batchMsg := message.NewBatchMessage(batchMessageType, id, city, lines)
-		producer.PublishMessage(batchMsg, "")
+		h.tripsProducer.PublishMessage(batchMsg, "")
 		if batchCounter%10000 == 0 {
 			fmt.Printf("Time: %s Received batch %s\n", time.Since(startTime).String(), id)
 		}
@@ -147,9 +141,9 @@ func (h *ClientHandler) readBatchesAndSend(conn net.Conn, city string, producer 
 
 func (h *ClientHandler) handleEndStaticData(conn net.Conn) {
 	stationsEOF := message.NewStationsEOFMessage("1")
-	h.stationsProducer.PublishMessage(stationsEOF, "")
+	h.tripsProducer.PublishMessage(stationsEOF, "")
 	weatherEOF := message.NewWeatherEOFMessage("1")
-	h.weatherProducer.PublishMessage(weatherEOF, "")
+	h.tripsProducer.PublishMessage(weatherEOF, "")
 	protocol.Send(conn, protocol.Message{Type: protocol.Ack, Payload: ""})
 }
 
