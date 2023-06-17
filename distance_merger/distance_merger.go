@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"tp1/common/message"
 	"tp1/common/middleware"
 )
 
@@ -45,16 +46,17 @@ func (m *DistanceMerger) Run() {
 	m.sendResults()
 }
 
-func (m *DistanceMerger) processMessage(msg string) {
-	if msg == "eof" {
+func (m *DistanceMerger) processMessage(msg message.Message) {
+	if msg.IsEOF() {
 		return
 	}
 
 	m.mergeResults(msg)
 }
 
-func (m *DistanceMerger) mergeResults(msg string) error {
-	fields := strings.Split(msg, ",")
+func (m *DistanceMerger) mergeResults(msg message.Message) error {
+	result := msg.Batch[0]
+	fields := strings.Split(result, ",")
 	endStationName := fields[endStationNameIndex]
 	avg, err := strconv.ParseFloat(fields[averageIndex], 64)
 	if err != nil {
@@ -92,6 +94,8 @@ func (m *DistanceMerger) sendResults() {
 			result += fmt.Sprintf("%s,%v\n", s, avg)
 		}
 	}
-	m.producer.PublishMessage(result, "")
-	m.producer.PublishMessage("eof", "eof")
+	msg := message.NewTripsBatchMessage("", "", []string{result})
+	m.producer.PublishMessage(msg, "")
+	eof := message.NewTripsEOFMessage("1")
+	m.producer.PublishMessage(eof, "eof")
 }

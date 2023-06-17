@@ -6,8 +6,10 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
+	"tp1/common/message"
 	"tp1/common/middleware"
 	"tp1/common/protocol"
 )
@@ -88,7 +90,7 @@ func (h *ClientHandler) handleConnection(conn net.Conn) (shouldExit bool) {
 func (h *ClientHandler) handleStations(conn net.Conn, city string) (shouldExit bool) {
 	protocol.Send(conn, protocol.Message{Type: protocol.Ack, Payload: ""})
 	startTime := time.Now()
-	shouldExit = h.readBatchesAndSend(conn, city, h.stationsProducer, protocol.EndStations, startTime)
+	shouldExit = h.readBatchesAndSend(conn, city, h.stationsProducer, protocol.EndStations, message.StationsBatch, startTime)
 	fmt.Printf("Time: %s Finished receiving stations from %s\n", time.Since(startTime).String(), city)
 	return
 }
@@ -96,7 +98,7 @@ func (h *ClientHandler) handleStations(conn net.Conn, city string) (shouldExit b
 func (h *ClientHandler) handleWeather(conn net.Conn, city string) (shouldExit bool) {
 	protocol.Send(conn, protocol.Message{Type: protocol.Ack, Payload: ""})
 	startTime := time.Now()
-	shouldExit = h.readBatchesAndSend(conn, city, h.weatherProducer, protocol.EndWeather, startTime)
+	shouldExit = h.readBatchesAndSend(conn, city, h.weatherProducer, protocol.EndWeather, message.WeatherBatch, startTime)
 	fmt.Printf("Time: %s Finished receiving weather from %s\n", time.Since(startTime).String(), city)
 	return
 }
@@ -104,12 +106,12 @@ func (h *ClientHandler) handleWeather(conn net.Conn, city string) (shouldExit bo
 func (h *ClientHandler) handleTrips(conn net.Conn, city string) (shouldExit bool) {
 	protocol.Send(conn, protocol.Message{Type: protocol.Ack, Payload: ""})
 	startTime := time.Now()
-	shouldExit = h.readBatchesAndSend(conn, city, h.tripsProducer, protocol.EndTrips, startTime)
+	shouldExit = h.readBatchesAndSend(conn, city, h.tripsProducer, protocol.EndTrips, message.TripsBatch, startTime)
 	fmt.Printf("Time: %s Finished receiving trips from %s\n", time.Since(startTime).String(), city)
 	return
 }
 
-func (h *ClientHandler) readBatchesAndSend(conn net.Conn, city string, producer *middleware.Producer, endMessageType uint8, startTime time.Time) (shouldExit bool) {
+func (h *ClientHandler) readBatchesAndSend(conn net.Conn, city string, producer *middleware.Producer, endMessageType uint8, batchMessageType string, startTime time.Time) (shouldExit bool) {
 	batchCounter := 0
 	for {
 		select {
@@ -133,8 +135,9 @@ func (h *ClientHandler) readBatchesAndSend(conn net.Conn, city string, producer 
 		}
 		protocol.Send(conn, protocol.Message{Type: protocol.Ack, Payload: ""})
 		id := strconv.Itoa(batchCounter)
-		batch := id + "," + city + "\n" + msg.Payload
-		producer.PublishMessage(batch, "")
+		lines := strings.Split(msg.Payload, ";")
+		batchMsg := message.NewBatchMessage(batchMessageType, id, city, lines)
+		producer.PublishMessage(batchMsg, "")
 		if batchCounter%10000 == 0 {
 			fmt.Printf("Time: %s Received batch %s\n", time.Since(startTime).String(), id)
 		}
@@ -143,16 +146,19 @@ func (h *ClientHandler) readBatchesAndSend(conn net.Conn, city string, producer 
 }
 
 func (h *ClientHandler) handleEndStaticData(conn net.Conn) {
-	h.stationsProducer.PublishMessage("eof", "")
-	h.weatherProducer.PublishMessage("eof", "")
+	stationsEOF := message.NewStationsEOFMessage("1")
+	h.stationsProducer.PublishMessage(stationsEOF, "")
+	weatherEOF := message.NewWeatherEOFMessage("1")
+	h.weatherProducer.PublishMessage(weatherEOF, "")
 	protocol.Send(conn, protocol.Message{Type: protocol.Ack, Payload: ""})
 }
 
 func (h *ClientHandler) handleResults(conn net.Conn) {
 	protocol.Send(conn, protocol.Message{Type: protocol.Ack, Payload: ""})
-	h.tripsProducer.PublishMessage("eof", "")
-	h.resultsConsumer.Consume(func(msg string) {
-		protocol.Send(conn, protocol.NewDataMessage(msg))
+	tripsEOF := message.NewTripsEOFMessage("1")
+	h.tripsProducer.PublishMessage(tripsEOF, "")
+	h.resultsConsumer.Consume(func(msg message.Message) {
+		protocol.Send(conn, protocol.NewDataMessage(msg.Batch[0]))
 	})
 
 }

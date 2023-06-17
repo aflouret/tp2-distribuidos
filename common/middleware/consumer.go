@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"tp1/common/message"
 )
 
 type Consumer struct {
@@ -143,25 +144,25 @@ func NewConsumer(configID string) (*Consumer, error) {
 	}, nil
 }
 
-func (c *Consumer) Consume(processMessage func(string)) {
+func (c *Consumer) Consume(processMessage func(message.Message)) {
 	for {
 		select {
 		case <-c.sigtermChannel:
 			return
-		case msg := <-c.msgChannel:
-			msgBody := string(msg.Body)
-			if msgBody == "eof" {
+		case delivery := <-c.msgChannel:
+			msg := message.Deserialize(string(delivery.Body))
+			if msg.IsEOF() {
 				fmt.Printf("Received eof %v\n", c.eofsReceived)
 				c.eofsReceived++
 				if c.eofsReceived == c.config.previousStageInstances {
 					fmt.Println("Received all eofs")
-					processMessage(msgBody)
+					processMessage(msg)
 					return
 				}
 				continue
 			}
-			processMessage(msgBody)
-			msg.Ack(false)
+			processMessage(msg)
+			delivery.Ack(false)
 		}
 
 	}

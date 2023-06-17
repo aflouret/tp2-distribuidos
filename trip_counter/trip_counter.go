@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"tp1/common/message"
 	"tp1/common/middleware"
-	"tp1/common/utils"
 )
 
 const (
@@ -41,17 +41,17 @@ func (a *TripCounter) Run() {
 	a.sendResults()
 }
 
-func (a *TripCounter) processMessage(msg string) {
-	if msg == "eof" {
+func (a *TripCounter) processMessage(msg message.Message) {
+	if msg.IsEOF() {
 		return
 	}
 
-	id, _, trips := utils.ParseBatch(msg)
+	trips := msg.Batch
 
 	a.updateCount(trips)
 
 	if a.msgCount%20000 == 0 {
-		fmt.Printf("Time: %s Received batch %v\n", time.Since(a.startTime).String(), id)
+		fmt.Printf("Time: %s Received batch %v\n", time.Since(a.startTime).String(), msg.ID)
 	}
 	a.msgCount++
 }
@@ -71,7 +71,9 @@ func (a *TripCounter) updateCount(trips []string) {
 func (a *TripCounter) sendResults() {
 	for k, v := range a.countByStation {
 		result := fmt.Sprintf("%s,%s,%v", a.year, k, v)
-		a.producer.PublishMessage(result, "")
+		msg := message.NewTripsBatchMessage("", "", []string{result})
+		a.producer.PublishMessage(msg, "")
 	}
-	a.producer.PublishMessage("eof", "")
+	eof := message.NewTripsEOFMessage("1")
+	a.producer.PublishMessage(eof, "")
 }

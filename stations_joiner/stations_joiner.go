@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"tp1/common/message"
 	"tp1/common/middleware"
-	"tp1/common/utils"
 )
 
 const (
@@ -57,12 +57,12 @@ func (j *StationsJoiner) Run() {
 	j.tripsConsumer.Close()
 }
 
-func (j *StationsJoiner) processStationMessage(msg string) {
-	if msg == "eof" {
+func (j *StationsJoiner) processStationMessage(msg message.Message) {
+	if msg.IsEOF() {
 		return
 	}
 
-	_, city, stations := utils.ParseBatch(msg)
+	stations := msg.Batch
 
 	for _, s := range stations {
 		fields := strings.Split(s, ",")
@@ -71,31 +71,31 @@ func (j *StationsJoiner) processStationMessage(msg string) {
 		latitude := fields[2]
 		longitude := fields[3]
 		year := fields[4]
-		key := getStationKey(code, year, city)
+		key := getStationKey(code, year, msg.City)
 		j.stations[key] = station{name, latitude, longitude}
 	}
 }
 
-func (j *StationsJoiner) processTripMessage(msg string) {
-	if msg == "eof" {
+func (j *StationsJoiner) processTripMessage(msg message.Message) {
+	if msg.IsEOF() {
 		j.yearFilterProducer.PublishMessage(msg, "")
 		j.distanceCalculatorProducer.PublishMessage(msg, "")
 		return
 	}
-	id, city, trips := utils.ParseBatch(msg)
-	joinedTrips := j.joinStations(city, trips)
+	trips := msg.Batch
+	joinedTrips := j.joinStations(msg.City, trips)
 
 	if len(joinedTrips) > 0 {
 		if j.msgCount%20000 == 0 {
-			fmt.Printf("Time: %s Received batch %v\n", time.Since(j.startTime).String(), id)
+			fmt.Printf("Time: %s Received batch %v\n", time.Since(j.startTime).String(), msg.ID)
 		}
 
 		yearFilterTrips := j.dropDataForYearFilter(joinedTrips)
-		yearFilterBatch := utils.CreateBatch(id, "", yearFilterTrips)
+		yearFilterBatch := message.NewTripsBatchMessage(msg.ID, "", yearFilterTrips)
 		j.yearFilterProducer.PublishMessage(yearFilterBatch, "")
 
-		if city == "montreal" {
-			distanceCalculatorBatch := utils.CreateBatch(id, "", joinedTrips)
+		if msg.City == "montreal" {
+			distanceCalculatorBatch := message.NewTripsBatchMessage(msg.ID, "", joinedTrips)
 			j.distanceCalculatorProducer.PublishMessage(distanceCalculatorBatch, "")
 		}
 	}

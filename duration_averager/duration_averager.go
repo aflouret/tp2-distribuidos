@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"tp1/common/message"
 	"tp1/common/middleware"
-	"tp1/common/utils"
 )
 
 const (
@@ -46,17 +46,17 @@ func (a *DurationAverager) Run() {
 	a.sendResults()
 }
 
-func (a *DurationAverager) processMessage(msg string) {
-	if msg == "eof" {
+func (a *DurationAverager) processMessage(msg message.Message) {
+	if msg.IsEOF() {
 		return
 	}
 
-	id, _, trips := utils.ParseBatch(msg)
+	trips := msg.Batch
 
 	a.updateAverage(trips)
 
 	if a.msgCount%20000 == 0 {
-		fmt.Printf("Time: %s Received batch %v\n", time.Since(a.startTime).String(), id)
+		fmt.Printf("Time: %s Received batch %v\n", time.Since(a.startTime).String(), msg.ID)
 	}
 	a.msgCount++
 }
@@ -85,7 +85,9 @@ func (a *DurationAverager) updateAverage(trips []string) {
 func (a *DurationAverager) sendResults() {
 	for k, v := range a.avgDurationsByDate {
 		result := fmt.Sprintf("%s,%v,%v", k, v.avg, v.count)
-		a.producer.PublishMessage(result, "")
+		msg := message.NewTripsBatchMessage("", "", []string{result})
+		a.producer.PublishMessage(msg, "")
 	}
-	a.producer.PublishMessage("eof", "")
+	eof := message.NewTripsEOFMessage("1")
+	a.producer.PublishMessage(eof, "")
 }

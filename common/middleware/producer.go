@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/viper"
 	"os"
 	"strconv"
-	"strings"
+	"tp1/common/message"
 )
 
 type Producer struct {
@@ -75,12 +75,11 @@ func NewProducer(configID string) (*Producer, error) {
 	}, nil
 }
 
-func (p *Producer) PublishMessage(msg string, routingKey string) {
-	if msg == "eof" {
+func (p *Producer) PublishMessage(msg message.Message, routingKey string) {
+	if msg.IsEOF() {
 		routingKey = "eof"
 	} else if p.config.routeByID {
-		msgIDString := strings.Split(msg, ",")[0]
-		msgID, _ := strconv.Atoi(msgIDString)
+		msgID, _ := strconv.Atoi(msg.ID)
 		consumerID := msgID % p.config.nextStageInstances
 		routingKey += fmt.Sprintf("%v", consumerID)
 	}
@@ -94,7 +93,7 @@ func (p *Producer) PublishMessage(msg string, routingKey string) {
 		amqp.Publishing{
 			DeliveryMode: amqp.Transient,
 			ContentType:  "text/plain",
-			Body:         []byte(msg),
+			Body:         []byte(message.Serialize(msg)),
 		},
 	)
 	failOnError(err, "Failed to publish a message")

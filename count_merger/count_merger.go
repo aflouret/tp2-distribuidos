@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"tp1/common/message"
 	"tp1/common/middleware"
 )
 
@@ -44,16 +45,17 @@ func (m *CountMerger) Run() {
 	m.sendResults()
 }
 
-func (m *CountMerger) processMessage(msg string) {
-	if msg == "eof" {
+func (m *CountMerger) processMessage(msg message.Message) {
+	if msg.IsEOF() {
 		return
 	}
 
 	m.mergeResults(msg)
 }
 
-func (m *CountMerger) mergeResults(msg string) error {
-	fields := strings.Split(msg, ",")
+func (m *CountMerger) mergeResults(msg message.Message) error {
+	result := msg.Batch[0]
+	fields := strings.Split(result, ",")
 	year := fields[yearIndex]
 	startStationName := fields[startStationNameIndex]
 	count, err := strconv.Atoi(fields[countIndex])
@@ -97,6 +99,8 @@ func (m *CountMerger) sendResults() {
 		}
 	}
 
-	m.producer.PublishMessage(result, "")
-	m.producer.PublishMessage("eof", "eof")
+	msg := message.NewTripsBatchMessage("", "", []string{result})
+	m.producer.PublishMessage(msg, "")
+	eof := message.NewTripsEOFMessage("1")
+	m.producer.PublishMessage(eof, "eof")
 }

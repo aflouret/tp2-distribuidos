@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"tp1/common/message"
 	"tp1/common/middleware"
-	"tp1/common/utils"
 )
 
 const (
@@ -39,26 +39,26 @@ func (f *YearFilter) Run() {
 	f.consumer.Consume(f.processMessage)
 }
 
-func (f *YearFilter) processMessage(msg string) {
-	if msg == "eof" {
+func (f *YearFilter) processMessage(msg message.Message) {
+	if msg.IsEOF() {
 		f.producer.PublishMessage(msg, "")
 		return
 	}
-	id, _, trips := utils.ParseBatch(msg)
+	trips := msg.Batch
 
 	if f.msgCount%20000 == 0 {
-		fmt.Printf("Time: %s Received batch %v\n", time.Since(f.startTime).String(), id)
+		fmt.Printf("Time: %s Received batch %v\n", time.Since(f.startTime).String(), msg.ID)
 	}
 
 	filteredTripsYear1, filteredTripsYear2 := f.filter(trips)
 
 	if len(filteredTripsYear1) > 0 {
-		filteredTripsBatch := utils.CreateBatch(id, "", filteredTripsYear1)
+		filteredTripsBatch := message.NewTripsBatchMessage(msg.ID, "", filteredTripsYear1)
 		f.producer.PublishMessage(filteredTripsBatch, f.year1)
 	}
 
 	if len(filteredTripsYear2) > 0 {
-		filteredTripsBatch := utils.CreateBatch(id, "", filteredTripsYear2)
+		filteredTripsBatch := message.NewTripsBatchMessage(msg.ID, "", filteredTripsYear2)
 		f.producer.PublishMessage(filteredTripsBatch, f.year2)
 	}
 

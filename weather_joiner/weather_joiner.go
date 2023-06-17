@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"tp1/common/message"
 	"tp1/common/middleware"
-	"tp1/common/utils"
 )
 
 const (
@@ -46,12 +46,12 @@ func (j *WeatherJoiner) Run() {
 	j.tripsConsumer.Close()
 }
 
-func (j *WeatherJoiner) processWeatherMessage(msg string) {
-	if msg == "eof" {
+func (j *WeatherJoiner) processWeatherMessage(msg message.Message) {
+	if msg.IsEOF() {
 		return
 	}
 
-	_, city, weather := utils.ParseBatch(msg)
+	weather := msg.Batch
 
 	for _, w := range weather {
 		fields := strings.Split(w, ",")
@@ -64,25 +64,25 @@ func (j *WeatherJoiner) processWeatherMessage(msg string) {
 			return
 		}
 
-		if _, ok := j.precipitationsByDateByCity[city]; !ok {
-			j.precipitationsByDateByCity[city] = make(map[string]string)
+		if _, ok := j.precipitationsByDateByCity[msg.City]; !ok {
+			j.precipitationsByDateByCity[msg.City] = make(map[string]string)
 		}
-		j.precipitationsByDateByCity[city][previousDate] = precipitations
+		j.precipitationsByDateByCity[msg.City][previousDate] = precipitations
 	}
 }
 
-func (j *WeatherJoiner) processTripMessage(msg string) {
-	if msg == "eof" {
+func (j *WeatherJoiner) processTripMessage(msg message.Message) {
+	if msg.IsEOF() {
 		j.producer.PublishMessage(msg, "")
 		return
 	}
-	id, city, trips := utils.ParseBatch(msg)
-	joinedTrips := j.joinWeather(city, trips)
+	trips := msg.Batch
+	joinedTrips := j.joinWeather(msg.City, trips)
 	if len(joinedTrips) > 0 {
-		joinedTripsBatch := utils.CreateBatch(id, "", joinedTrips)
+		joinedTripsBatch := message.NewTripsBatchMessage(msg.ID, "", joinedTrips)
 		j.producer.PublishMessage(joinedTripsBatch, "")
 		if j.msgCount%20000 == 0 {
-			fmt.Printf("Time: %s Received batch %v\n", time.Since(j.startTime).String(), id)
+			fmt.Printf("Time: %s Received batch %v\n", time.Since(j.startTime).String(), msg.ID)
 		}
 	}
 

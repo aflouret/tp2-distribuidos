@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"tp1/common/message"
 	"tp1/common/middleware"
-	"tp1/common/utils"
 )
 
 const (
@@ -45,26 +45,27 @@ func (d *DataDropper) Run() {
 	d.consumer.Consume(d.processMessage)
 }
 
-func (d *DataDropper) processMessage(msg string) {
-	if msg == "eof" {
+func (d *DataDropper) processMessage(msg message.Message) {
+	if msg.IsEOF() {
 		d.stationsJoinerProducer.PublishMessage(msg, "")
 		d.weatherJoinerProducer.PublishMessage(msg, "")
 		return
 	}
 
-	id, city, trips := utils.ParseBatch(msg)
+	trips := msg.Batch
+
 	sanitizedTrips := d.sanitize(trips)
 
 	weatherJoinerTrips := d.dropDataForWeatherJoiner(sanitizedTrips)
-	weatherJoinerBatch := utils.CreateBatch(id, city, weatherJoinerTrips)
-	d.weatherJoinerProducer.PublishMessage(weatherJoinerBatch, "")
+	weatherJoinerMessage := message.NewTripsBatchMessage(msg.ID, msg.City, weatherJoinerTrips)
+	d.weatherJoinerProducer.PublishMessage(weatherJoinerMessage, "")
 
 	stationsJoinerTrips := d.dropDataForStationsJoiner(sanitizedTrips)
-	stationsJoinerBatch := utils.CreateBatch(id, city, stationsJoinerTrips)
-	d.stationsJoinerProducer.PublishMessage(stationsJoinerBatch, "")
+	stationsJoinerMessage := message.NewTripsBatchMessage(msg.ID, msg.City, stationsJoinerTrips)
+	d.stationsJoinerProducer.PublishMessage(stationsJoinerMessage, "")
 
 	if d.msgCount%20000 == 0 {
-		fmt.Printf("Time: %s Received batch %v\n", time.Since(d.startTime).String(), id)
+		fmt.Printf("Time: %s Received batch %v\n", time.Since(d.startTime).String(), msg)
 	}
 	d.msgCount++
 }

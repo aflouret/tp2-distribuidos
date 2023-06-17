@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"tp1/common/message"
 	"tp1/common/middleware"
 )
 
@@ -43,16 +44,17 @@ func (m *DurationMerger) Run() {
 	m.sendResults()
 }
 
-func (m *DurationMerger) processMessage(msg string) {
-	if msg == "eof" {
+func (m *DurationMerger) processMessage(msg message.Message) {
+	if msg.IsEOF() {
 		return
 	}
 
 	m.mergeResults(msg)
 }
 
-func (m *DurationMerger) mergeResults(msg string) error {
-	fields := strings.Split(msg, ",")
+func (m *DurationMerger) mergeResults(msg message.Message) error {
+	result := msg.Batch[0]
+	fields := strings.Split(result, ",")
 	startDate := fields[startDateIndex]
 	avg, err := strconv.ParseFloat(fields[averageIndex], 64)
 	if err != nil {
@@ -89,6 +91,8 @@ func (m *DurationMerger) sendResults() {
 		result += fmt.Sprintf("%s,%v\n", date, avg)
 	}
 
-	m.producer.PublishMessage(result, "")
-	m.producer.PublishMessage("eof", "eof")
+	msg := message.NewTripsBatchMessage("", "", []string{result})
+	m.producer.PublishMessage(msg, "")
+	eof := message.NewTripsEOFMessage("1")
+	m.producer.PublishMessage(eof, "eof")
 }
