@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/google/uuid"
 	"net"
 	"os"
 	"os/signal"
@@ -49,91 +50,92 @@ func (h *ClientHandler) Run() {
 			continue
 		}
 		fmt.Printf("New connection from: %v\n", conn.RemoteAddr())
-		if shouldExit := h.handleConnection(conn); shouldExit {
-			break
-		}
+		h.handleConnection(conn)
 	}
 	h.tripsProducer.Close()
 	h.resultsConsumer.Close()
 }
 
-func (h *ClientHandler) handleConnection(conn net.Conn) (shouldExit bool) {
+func (h *ClientHandler) handleConnection(conn net.Conn) {
 	defer conn.Close()
-
-	msg, err := protocol.Recv(conn)
-	if err != nil {
-		fmt.Printf("Error reading from connection: %v\n", err)
-		return
-	}
-	switch msg.Type {
-	case protocol.BeginStations:
-		shouldExit = h.handleStations(conn, msg.Payload)
-	case protocol.BeginWeather:
-		shouldExit = h.handleWeather(conn, msg.Payload)
-	case protocol.EndStaticData:
-		h.handleEndStaticData(conn)
-	case protocol.BeginTrips:
-		shouldExit = h.handleTrips(conn, msg.Payload)
-	case protocol.GetResults:
-		h.handleResults(conn)
-		shouldExit = true
-	}
-	return
-}
-
-func (h *ClientHandler) handleStations(conn net.Conn, city string) (shouldExit bool) {
-	protocol.Send(conn, protocol.Message{Type: protocol.Ack, Payload: ""})
-	startTime := time.Now()
-	shouldExit = h.readBatchesAndSend(conn, city, protocol.EndStations, message.StationsBatch, startTime)
-	fmt.Printf("Time: %s Finished receiving stations from %s\n", time.Since(startTime).String(), city)
-	return
-}
-
-func (h *ClientHandler) handleWeather(conn net.Conn, city string) (shouldExit bool) {
-	protocol.Send(conn, protocol.Message{Type: protocol.Ack, Payload: ""})
-	startTime := time.Now()
-	shouldExit = h.readBatchesAndSend(conn, city, protocol.EndWeather, message.WeatherBatch, startTime)
-	fmt.Printf("Time: %s Finished receiving weather from %s\n", time.Since(startTime).String(), city)
-	return
-}
-
-func (h *ClientHandler) handleTrips(conn net.Conn, city string) (shouldExit bool) {
-	protocol.Send(conn, protocol.Message{Type: protocol.Ack, Payload: ""})
-	startTime := time.Now()
-	shouldExit = h.readBatchesAndSend(conn, city, protocol.EndTrips, message.TripsBatch, startTime)
-	fmt.Printf("Time: %s Finished receiving trips from %s\n", time.Since(startTime).String(), city)
-	return
-}
-
-func (h *ClientHandler) readBatchesAndSend(conn net.Conn, city string, endMessageType uint8, batchMessageType string, startTime time.Time) (shouldExit bool) {
-	batchCounter := 0
+	id := uuid.NewString()
+	fmt.Printf("CONNECTION ID = %s\n", id)
 	for {
 		select {
 		case <-h.sigtermNotifier:
-			shouldExit = true
 			return
 		default:
 		}
 		msg, err := protocol.Recv(conn)
 		if err != nil {
-			fmt.Printf("Error reading from connection: %v\n", err)
+			fmt.Printf("[CLIENT %s] Error reading from connection: %v\n", id, err)
+			return
+		}
+		switch msg.Type {
+		case protocol.BeginStations:
+			h.handleStations(conn, id, msg.Payload)
+		case protocol.BeginWeather:
+			h.handleWeather(conn, id, msg.Payload)
+		case protocol.EndStaticData:
+			h.handleEndStaticData(conn)
+		case protocol.BeginTrips:
+			h.handleTrips(conn, id, msg.Payload)
+		case protocol.GetResults:
+			h.handleResults(conn)
+			return
+		}
+	}
+}
+
+func (h *ClientHandler) handleStations(conn net.Conn, id, city string) {
+	protocol.Send(conn, protocol.Message{Type: protocol.Ack, Payload: ""})
+	startTime := time.Now()
+	h.readBatchesAndSend(conn, id, city, protocol.EndStations, message.StationsBatch, startTime)
+	fmt.Printf("[CLIENT %s] Time: %s Finished receiving stations from %s\n", id, time.Since(startTime).String(), city)
+}
+
+func (h *ClientHandler) handleWeather(conn net.Conn, id, city string) {
+	protocol.Send(conn, protocol.Message{Type: protocol.Ack, Payload: ""})
+	startTime := time.Now()
+	h.readBatchesAndSend(conn, id, city, protocol.EndWeather, message.WeatherBatch, startTime)
+	fmt.Printf("[CLIENT %s] Time: %s Finished receiving weather from %s\n", id, time.Since(startTime).String(), city)
+}
+
+func (h *ClientHandler) handleTrips(conn net.Conn, id, city string) {
+	protocol.Send(conn, protocol.Message{Type: protocol.Ack, Payload: ""})
+	startTime := time.Now()
+	h.readBatchesAndSend(conn, id, city, protocol.EndTrips, message.TripsBatch, startTime)
+	fmt.Printf("[CLIENT %s] Time: %s Finished receiving trips from %s\n", id, time.Since(startTime).String(), city)
+}
+
+func (h *ClientHandler) readBatchesAndSend(conn net.Conn, id string, city string, endMessageType uint8, batchMessageType string, startTime time.Time) {
+	batchCounter := 0
+	for {
+		select {
+		case <-h.sigtermNotifier:
+			return
+		default:
+		}
+		msg, err := protocol.Recv(conn)
+		if err != nil {
+			fmt.Printf("[CLIENT %s] Error reading from connection: %v\n", id, err)
 			return
 		}
 		if msg.Type != protocol.Data {
 			if msg.Type != endMessageType {
-				fmt.Printf("Received invalid message: %v, \n", msg.Type)
+				fmt.Printf("[CLIENT %s] Received invalid message: %v, \n", id, msg.Type)
 				return
 			}
 			protocol.Send(conn, protocol.Message{Type: protocol.Ack, Payload: ""})
 			return
 		}
 		protocol.Send(conn, protocol.Message{Type: protocol.Ack, Payload: ""})
-		id := strconv.Itoa(batchCounter)
+		batchID := strconv.Itoa(batchCounter)
 		lines := strings.Split(msg.Payload, ";")
-		batchMsg := message.NewBatchMessage(batchMessageType, id, city, lines)
+		batchMsg := message.NewBatchMessage(batchMessageType, batchID, city, lines)
 		h.tripsProducer.PublishMessage(batchMsg, "")
 		if batchCounter%10000 == 0 {
-			fmt.Printf("Time: %s Received batch %s\n", time.Since(startTime).String(), id)
+			fmt.Printf("[CLIENT %s] Time: %s Received batch %s\n", id, time.Since(startTime).String(), batchID)
 		}
 		batchCounter++
 	}
