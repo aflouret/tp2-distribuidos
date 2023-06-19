@@ -1,8 +1,6 @@
 consumer:
   exchange_name: weather_joiner
   prev_stage_instances_env: DATA_DROPPER_INSTANCES
-  route_by_id: true
-  routing_key: weather
 producer:
   exchange_name: precipitation_filter
   next_stage_instances_env: NEXT_STAGE_INSTANCES

@@ -1,7 +1,6 @@
 consumer:
   exchange_name: results
   prev_stage_instances_env: MERGER_INSTANCES
-  route_by_id: false
 producer:
   exchange_name: data_dropper
   next_stage_instances_env: DATA_DROPPER_INSTANCES

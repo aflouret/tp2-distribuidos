@@ -26,8 +26,6 @@ type ConsumerConfig struct {
 	exchangeName           string
 	instanceID             string
 	previousStageInstances int
-	routeByID              bool
-	routingKey             string
 }
 
 func newConsumerConfig(configID string) (ConsumerConfig, error) {
@@ -37,8 +35,6 @@ func newConsumerConfig(configID string) (ConsumerConfig, error) {
 		return ConsumerConfig{}, fmt.Errorf("Configuration for consumer %s could not be read from config file: %w\n", configID, err)
 	}
 	exchangeName := v.GetString(fmt.Sprintf("%s.exchange_name", configID))
-	routeByID := v.GetBool(fmt.Sprintf("%s.route_by_id", configID))
-	routingKey := v.GetString(fmt.Sprintf("%s.routing_key", configID))
 	previousStageInstancesEnv := v.GetString(fmt.Sprintf("%s.prev_stage_instances_env", configID))
 	previousStageInstances, err := strconv.Atoi(os.Getenv(previousStageInstancesEnv))
 	if err != nil {
@@ -52,8 +48,6 @@ func newConsumerConfig(configID string) (ConsumerConfig, error) {
 		exchangeName:           exchangeName,
 		instanceID:             instanceID,
 		previousStageInstances: previousStageInstances,
-		routeByID:              routeByID,
-		routingKey:             routingKey,
 	}, nil
 }
 
@@ -63,7 +57,7 @@ func failOnError(err error, msg string) {
 	}
 }
 
-func NewConsumer(configID string) (*Consumer, error) {
+func NewConsumer(configID string, routingKey string) (*Consumer, error) {
 	config, err := newConsumerConfig(configID)
 	if err != nil {
 		return nil, err
@@ -85,7 +79,7 @@ func NewConsumer(configID string) (*Consumer, error) {
 	)
 	failOnError(err, "Failed to declare an exchange")
 
-	queueName := config.exchangeName + config.instanceID
+	queueName := config.exchangeName + "_" + routingKey + "_" + config.instanceID
 	q, err := ch.QueueDeclare(
 		queueName, // name
 		false,     // durable
@@ -96,10 +90,10 @@ func NewConsumer(configID string) (*Consumer, error) {
 	)
 	failOnError(err, "Failed to declare a queue")
 
-	if config.routingKey != "" {
+	if routingKey != "" {
 		err = ch.QueueBind(
 			q.Name,              // queue name
-			config.routingKey,   // routing key
+			routingKey,          // routing key
 			config.exchangeName, // exchange
 			false,
 			nil)
@@ -121,6 +115,13 @@ func NewConsumer(configID string) (*Consumer, error) {
 		false,
 		nil)
 	failOnError(err, "Failed to bind a queue")
+
+	err = ch.Qos(
+		1000,  // prefetch count
+		0,     // prefetch size
+		false, // global
+	)
+	failOnError(err, "Failed to set QoS")
 
 	msgs, err := ch.Consume(
 		q.Name,
@@ -156,11 +157,7 @@ func (c *Consumer) Consume(processMessage func(message.Message)) {
 			msg := message.Deserialize(string(delivery.Body))
 			if msg.IsEOF() {
 				if _, ok := c.eofsReceived[msg.ClientID]; !ok {
-					c.eofsReceived[msg.ClientID] = map[string]int{
-						message.TripsEOF:    0,
-						message.StationsEOF: 0,
-						message.WeatherEOF:  0,
-					}
+					c.eofsReceived[msg.ClientID] = make(map[string]int)
 					c.eofsReceived[msg.ClientID][msg.MsgType] = 1
 				} else {
 					c.eofsReceived[msg.ClientID][msg.MsgType] += 1

@@ -71,9 +71,7 @@ func (d *DataDropper) processTripsMessage(msg message.Message) {
 		return
 	}
 
-	trips := msg.Batch
-
-	sanitizedTrips := d.sanitize(trips)
+	sanitizedTrips := d.sanitize(msg)
 
 	weatherJoinerTrips := d.dropDataForWeatherJoiner(sanitizedTrips)
 	weatherJoinerMessage := message.NewTripsBatchMessage(msg.ID, msg.ClientID, msg.City, weatherJoinerTrips)
@@ -89,7 +87,8 @@ func (d *DataDropper) processTripsMessage(msg message.Message) {
 	d.msgCount++
 }
 
-func (d *DataDropper) sanitize(trips []string) []string {
+func (d *DataDropper) sanitize(msg message.Message) []string {
+	trips := msg.Batch
 	sanitizedTrips := make([]string, 0, len(trips))
 	for i := range trips {
 		fields := strings.Split(trips[i], ",")

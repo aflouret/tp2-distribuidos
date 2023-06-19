@@ -1,7 +1,6 @@
 consumer:
   exchange_name: distance_calculator
   prev_stage_instances_env: PREV_STAGE_INSTANCES
-  route_by_id: true
 producer:
   exchange_name: distance_averager
   next_stage_instances_env: NEXT_STAGE_INSTANCES

@@ -30,8 +30,9 @@ services:
         source: ./client_handler/middleware_config.yaml
         target: /middleware_config.yaml
 
-  client:
-    container_name: client
+  
+  client_0:
+    container_name: client_0
     image: client:latest
     entrypoint: /client
     restart: on-failure
@@ -44,6 +45,67 @@ services:
       - type: bind
         source: ./client/config.yaml
         target: /config.yaml
+
+  client_1:
+    container_name: client_1
+    image: client:latest
+    entrypoint: /client
+    restart: on-failure
+    depends_on:
+      - client_handler
+    volumes:
+      - type: bind
+        source: ./data
+        target: /data
+      - type: bind
+        source: ./client/config.yaml
+        target: /config.yaml
+
+  client_2:
+    container_name: client_2
+    image: client:latest
+    entrypoint: /client
+    restart: on-failure
+    depends_on:
+      - client_handler
+    volumes:
+      - type: bind
+        source: ./data
+        target: /data
+      - type: bind
+        source: ./client/config.yaml
+        target: /config.yaml
+
+  client_3:
+    container_name: client_3
+    image: client:latest
+    entrypoint: /client
+    restart: on-failure
+    depends_on:
+      - client_handler
+    volumes:
+      - type: bind
+        source: ./data
+        target: /data
+      - type: bind
+        source: ./client/config.yaml
+        target: /config.yaml
+
+  client_4:
+    container_name: client_4
+    image: client:latest
+    entrypoint: /client
+    restart: on-failure
+    depends_on:
+      - client_handler
+    volumes:
+      - type: bind
+        source: ./data
+        target: /data
+      - type: bind
+        source: ./client/config.yaml
+        target: /config.yaml
+
 
   duration_merger:
     container_name: duration_merger
@@ -65,7 +127,7 @@ services:
   count_merger:
     container_name: count_merger
     environment:
-      - PREV_STAGE_INSTANCES=4
+      - PREV_STAGE_INSTANCES=2
       - NEXT_STAGE_INSTANCES=1
       - YEAR_1=2016
       - YEAR_2=2017
@@ -453,11 +515,12 @@ services:
         target: /middleware_config.yaml
 
 
-  trip_counter_year_1_0:
-    container_name: trip_counter_year_1_0
+  trip_counter_0:
+    container_name: trip_counter_0
     environment:
       - ID=0
-      - YEAR=2016
+      - YEAR_1=2016
+      - YEAR_2=2017
       - PREV_STAGE_INSTANCES=3
       - NEXT_STAGE_INSTANCES=1
       - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
@@ -472,31 +535,12 @@ services:
         source: ./trip_counter/middleware_config.yaml
         target: /middleware_config.yaml
 
-  trip_counter_year_1_1:
-    container_name: trip_counter_year_1_1
+  trip_counter_1:
+    container_name: trip_counter_1
     environment:
       - ID=1
-      - YEAR=2016
-      - PREV_STAGE_INSTANCES=3
-      - NEXT_STAGE_INSTANCES=1
-      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
-    image: trip_counter:latest
-    entrypoint: /trip_counter
-    restart: on-failure
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    volumes:
-      - type: bind
-        source: ./trip_counter/middleware_config.yaml
-        target: /middleware_config.yaml
-  
-
-  trip_counter_year_2_0:
-    container_name: trip_counter_year_2_0
-    environment:
-      - ID=0
-      - YEAR=2017
+      - YEAR_1=2016
+      - YEAR_2=2017
       - PREV_STAGE_INSTANCES=3
       - NEXT_STAGE_INSTANCES=1
       - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
@@ -511,25 +555,6 @@ services:
         source: ./trip_counter/middleware_config.yaml
         target: /middleware_config.yaml
 
-  trip_counter_year_2_1:
-    container_name: trip_counter_year_2_1
-    environment:
-      - ID=1
-      - YEAR=2017
-      - PREV_STAGE_INSTANCES=3
-      - NEXT_STAGE_INSTANCES=1
-      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
-    image: trip_counter:latest
-    entrypoint: /trip_counter
-    restart: on-failure
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    volumes:
-      - type: bind
-        source: ./trip_counter/middleware_config.yaml
-        target: /middleware_config.yaml
-  
 
   distance_calculator_0:
     container_name: distance_calculator_0

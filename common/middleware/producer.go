@@ -76,12 +76,14 @@ func NewProducer(configID string) (*Producer, error) {
 }
 
 func (p *Producer) PublishMessage(msg message.Message, routingKey string) {
-	if msg.IsEOF() {
-		routingKey = "eof"
-	} else if routingKey == "" && p.config.routeByID {
-		msgID, _ := strconv.Atoi(msg.ID)
-		consumerID := msgID % p.config.nextStageInstances
-		routingKey = fmt.Sprintf("%v", consumerID)
+	if routingKey == "" {
+		if msg.IsEOF() {
+			routingKey = "eof"
+		} else if p.config.routeByID {
+			msgID, _ := strconv.Atoi(msg.ID)
+			consumerID := msgID % p.config.nextStageInstances
+			routingKey = fmt.Sprintf("%v", consumerID)
+		}
 	}
 
 	//fmt.Printf("Routing key: %s, message: %s\n", routingKey, msg)

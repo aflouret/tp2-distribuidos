@@ -10,7 +10,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	consumer, err := middleware.NewConsumer("consumer")
+	consumer, err := middleware.NewConsumer("consumer", "weather")
 	if err != nil {
 		log.Fatal(err)
 	}

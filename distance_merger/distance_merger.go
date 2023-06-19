@@ -103,7 +103,7 @@ func (m *DistanceMerger) sendResults(clientID string) {
 		}
 	}
 	msg := message.NewResultsBatchMessage("", clientID, []string{result})
-	m.producer.PublishMessage(msg, "")
+	m.producer.PublishMessage(msg, msg.ClientID)
 	eof := message.NewResultsEOFMessage("1", clientID)
-	m.producer.PublishMessage(eof, "eof")
+	m.producer.PublishMessage(eof, msg.ClientID)
 }

@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-	consumer, err := middleware.NewConsumer("consumer")
+	consumer, err := middleware.NewConsumer("consumer", "")
 	if err != nil {
 		log.Fatal(err)
 	}

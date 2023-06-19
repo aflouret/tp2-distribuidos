@@ -13,7 +13,7 @@ func main() {
 		minimumDistance = 6
 	}
 
-	consumer, err := middleware.NewConsumer("consumer")
+	consumer, err := middleware.NewConsumer("consumer", "")
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -17,7 +17,7 @@ func main() {
 		year2 = "2017"
 	}
 
-	consumer, err := middleware.NewConsumer("consumer")
+	consumer, err := middleware.NewConsumer("consumer", "")
 	if err != nil {
 		log.Fatal(err)
 	}
