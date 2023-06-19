@@ -16,7 +16,7 @@ const (
 type WeatherJoiner struct {
 	producer                   *middleware.Producer
 	consumer                   *middleware.Consumer
-	precipitationsByDateByCity map[string]map[string]string
+	precipitationsByDateByCity map[string]map[string]map[string]string
 	msgCount                   int
 	startTime                  time.Time
 }
@@ -25,7 +25,7 @@ func NewWeatherJoiner(
 	producer *middleware.Producer,
 	consumer *middleware.Consumer,
 ) *WeatherJoiner {
-	precipitationsByDateByCity := make(map[string]map[string]string)
+	precipitationsByDateByCity := make(map[string]map[string]map[string]string)
 	return &WeatherJoiner{
 		producer:                   producer,
 		consumer:                   consumer,
@@ -56,8 +56,14 @@ func (j *WeatherJoiner) processWeatherMessage(msg message.Message) {
 		return
 	}
 
-	weather := msg.Batch
+	if _, ok := j.precipitationsByDateByCity[msg.ClientID]; !ok {
+		j.precipitationsByDateByCity[msg.ClientID] = make(map[string]map[string]string)
+	}
+	if _, ok := j.precipitationsByDateByCity[msg.ClientID][msg.City]; !ok {
+		j.precipitationsByDateByCity[msg.ClientID][msg.City] = make(map[string]string)
+	}
 
+	weather := msg.Batch
 	for _, w := range weather {
 		fields := strings.Split(w, ",")
 		date := fields[0]
@@ -68,40 +74,38 @@ func (j *WeatherJoiner) processWeatherMessage(msg message.Message) {
 			fmt.Printf("error parsing date: %s", err)
 			return
 		}
-
-		if _, ok := j.precipitationsByDateByCity[msg.City]; !ok {
-			j.precipitationsByDateByCity[msg.City] = make(map[string]string)
-		}
-		j.precipitationsByDateByCity[msg.City][previousDate] = precipitations
+		j.precipitationsByDateByCity[msg.ClientID][msg.City][previousDate] = precipitations
 	}
 }
 
 func (j *WeatherJoiner) processTripsMessage(msg message.Message) {
 	if msg.IsEOF() {
 		j.producer.PublishMessage(msg, "")
+		delete(j.precipitationsByDateByCity, msg.ClientID)
 		return
 	}
 	trips := msg.Batch
-	joinedTrips := j.joinWeather(msg.City, trips)
+	joinedTrips := j.joinWeather(msg.City, trips, msg.ClientID)
 	if len(joinedTrips) > 0 {
-		joinedTripsBatch := message.NewTripsBatchMessage(msg.ID, "", joinedTrips)
+		joinedTripsBatch := message.NewTripsBatchMessage(msg.ID, msg.ClientID, "", joinedTrips)
 		j.producer.PublishMessage(joinedTripsBatch, "")
 		if j.msgCount%20000 == 0 {
-			fmt.Printf("Time: %s Received batch %v\n", time.Since(j.startTime).String(), msg.ID)
+			fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(j.startTime).String(), msg.ID)
 		}
 	}
 
 	j.msgCount++
 }
 
-func (j *WeatherJoiner) joinWeather(city string, trips []string) []string {
+func (j *WeatherJoiner) joinWeather(city string, trips []string, clientID string) []string {
 	joinedTrips := make([]string, 0, len(trips))
+	precipitationsByDateByCity := j.precipitationsByDateByCity[clientID]
 	for _, trip := range trips {
 		tripFields := strings.Split(trip, ",")
 		startDate := tripFields[tripStartDateIndex]
 		duration := tripFields[tripDurationIndex]
 
-		precipitations, ok := j.precipitationsByDateByCity[city][startDate]
+		precipitations, ok := precipitationsByDateByCity[city][startDate]
 		if !ok {
 			continue
 		}

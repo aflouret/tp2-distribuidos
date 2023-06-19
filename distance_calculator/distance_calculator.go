@@ -53,11 +53,11 @@ func (c *DistanceCalculator) processMessage(msg message.Message) {
 	tripsWithDistance := c.calculateDistance(trips)
 
 	if len(tripsWithDistance) > 0 {
-		tripsWithDistanceBatch := message.NewTripsBatchMessage(msg.ID, "", tripsWithDistance)
+		tripsWithDistanceBatch := message.NewTripsBatchMessage(msg.ID, msg.ClientID, "", tripsWithDistance)
 		c.producer.PublishMessage(tripsWithDistanceBatch, "")
 
 		if c.msgCount%20000 == 0 {
-			fmt.Printf("Time: %s Received batch %v\n", time.Since(c.startTime).String(), msg.ID)
+			fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(c.startTime).String(), msg.ID)
 		}
 	}
 

@@ -20,13 +20,13 @@ type CountMerger struct {
 	consumer            *middleware.Consumer
 	year1               string
 	year2               string
-	countByStationYear1 map[string]int
-	countByStationYear2 map[string]int
+	countByStationYear1 map[string]map[string]int
+	countByStationYear2 map[string]map[string]int
 }
 
 func NewCountMerger(consumer *middleware.Consumer, producer *middleware.Producer, year1 string, year2 string) *CountMerger {
-	countByStationYear1 := make(map[string]int)
-	countByStationYear2 := make(map[string]int)
+	countByStationYear1 := make(map[string]map[string]int)
+	countByStationYear2 := make(map[string]map[string]int)
 	return &CountMerger{
 		producer:            producer,
 		consumer:            consumer,
@@ -46,7 +46,9 @@ func (m *CountMerger) Run() {
 
 func (m *CountMerger) processMessage(msg message.Message) {
 	if msg.IsEOF() {
-		m.sendResults()
+		m.sendResults(msg.ClientID)
+		delete(m.countByStationYear1, msg.ClientID)
+		delete(m.countByStationYear2, msg.ClientID)
 		return
 	}
 
@@ -63,26 +65,38 @@ func (m *CountMerger) mergeResults(msg message.Message) error {
 		return err
 	}
 
+	countByStationYear1, ok := m.countByStationYear1[msg.ClientID]
+	if !ok {
+		countByStationYear1 = make(map[string]int)
+	}
+	countByStationYear2, ok := m.countByStationYear2[msg.ClientID]
+	if !ok {
+		countByStationYear2 = make(map[string]int)
+	}
+
 	if year == m.year1 {
-		if c, ok := m.countByStationYear1[startStationName]; ok {
-			m.countByStationYear1[startStationName] = c + count
+		if c, ok := countByStationYear1[startStationName]; ok {
+			countByStationYear1[startStationName] = c + count
 		} else {
-			m.countByStationYear1[startStationName] = count
+			countByStationYear1[startStationName] = count
 		}
 	} else if year == m.year2 {
-		if c, ok := m.countByStationYear2[startStationName]; ok {
-			m.countByStationYear2[startStationName] = c + count
+		if c, ok := countByStationYear2[startStationName]; ok {
+			countByStationYear2[startStationName] = c + count
 		} else {
-			m.countByStationYear2[startStationName] = count
+			countByStationYear2[startStationName] = count
 		}
 	}
+
+	m.countByStationYear1[msg.ClientID] = countByStationYear1
+	m.countByStationYear2[msg.ClientID] = countByStationYear2
 
 	return nil
 }
 
-func (m *CountMerger) sendResults() {
-	sortedStations := make([]string, 0, len(m.countByStationYear2))
-	for k := range m.countByStationYear2 {
+func (m *CountMerger) sendResults(clientID string) {
+	sortedStations := make([]string, 0, len(m.countByStationYear2[clientID]))
+	for k := range m.countByStationYear2[clientID] {
 		sortedStations = append(sortedStations, k)
 	}
 	sort.Strings(sortedStations)
@@ -91,16 +105,16 @@ func (m *CountMerger) sendResults() {
 	result += fmt.Sprintf("start_station_name,trips_count_%s,trips_count_%s\n", m.year2, m.year1)
 
 	for _, s := range sortedStations {
-		countYear2 := m.countByStationYear2[s]
-		if countYear1, ok := m.countByStationYear1[s]; ok {
+		countYear2 := m.countByStationYear2[clientID][s]
+		if countYear1, ok := m.countByStationYear1[clientID][s]; ok {
 			if countYear2 > 2*countYear1 {
 				result += fmt.Sprintf("%s,%v,%v\n", s, countYear2, countYear1)
 			}
 		}
 	}
 
-	msg := message.NewTripsBatchMessage("", "", []string{result})
+	msg := message.NewResultsBatchMessage("", clientID, []string{result})
 	m.producer.PublishMessage(msg, "")
-	eof := message.NewTripsEOFMessage("1")
+	eof := message.NewResultsEOFMessage("1", clientID)
 	m.producer.PublishMessage(eof, "eof")
 }

@@ -21,20 +21,20 @@ type average struct {
 }
 
 type DistanceMerger struct {
-	producer                  *middleware.Producer
-	consumer                  *middleware.Consumer
-	minimumDistance           float64
-	averageDistancesByStation map[string]average
+	producer              *middleware.Producer
+	consumer              *middleware.Consumer
+	minimumDistance       float64
+	avgDistancesByStation map[string]map[string]average
 }
 
 func NewDistanceMerger(consumer *middleware.Consumer, producer *middleware.Producer, minimumDistance float64) *DistanceMerger {
-	averageDistancesByStation := make(map[string]average)
+	avgDistancesByStation := make(map[string]map[string]average)
 
 	return &DistanceMerger{
-		producer:                  producer,
-		consumer:                  consumer,
-		minimumDistance:           minimumDistance,
-		averageDistancesByStation: averageDistancesByStation,
+		producer:              producer,
+		consumer:              consumer,
+		minimumDistance:       minimumDistance,
+		avgDistancesByStation: avgDistancesByStation,
 	}
 }
 
@@ -47,7 +47,8 @@ func (m *DistanceMerger) Run() {
 
 func (m *DistanceMerger) processMessage(msg message.Message) {
 	if msg.IsEOF() {
-		m.sendResults()
+		m.sendResults(msg.ClientID)
+		delete(m.avgDistancesByStation, msg.ClientID)
 		return
 	}
 
@@ -67,20 +68,27 @@ func (m *DistanceMerger) mergeResults(msg message.Message) error {
 		return err
 	}
 
-	if d, ok := m.averageDistancesByStation[endStationName]; ok {
+	avgDistancesByStation, ok := m.avgDistancesByStation[msg.ClientID]
+	if !ok {
+		avgDistancesByStation = make(map[string]average)
+	}
+
+	if d, ok := avgDistancesByStation[endStationName]; ok {
 		newAvg := (d.avg*float64(d.count) + avg*float64(count)) / float64(d.count+count)
 		d.avg = newAvg
 		d.count += count
-		m.averageDistancesByStation[endStationName] = d
+		avgDistancesByStation[endStationName] = d
 	} else {
-		m.averageDistancesByStation[endStationName] = average{avg: avg, count: count}
+		avgDistancesByStation[endStationName] = average{avg: avg, count: count}
 	}
+
+	m.avgDistancesByStation[msg.ClientID] = avgDistancesByStation
 	return nil
 }
 
-func (m *DistanceMerger) sendResults() {
-	sortedStations := make([]string, 0, len(m.averageDistancesByStation))
-	for k := range m.averageDistancesByStation {
+func (m *DistanceMerger) sendResults(clientID string) {
+	sortedStations := make([]string, 0, len(m.avgDistancesByStation[clientID]))
+	for k := range m.avgDistancesByStation[clientID] {
 		sortedStations = append(sortedStations, k)
 	}
 	sort.Strings(sortedStations)
@@ -89,13 +97,13 @@ func (m *DistanceMerger) sendResults() {
 	result += "end_station_name,average_distance\n"
 
 	for _, s := range sortedStations {
-		avg := m.averageDistancesByStation[s].avg
+		avg := m.avgDistancesByStation[clientID][s].avg
 		if avg > m.minimumDistance {
 			result += fmt.Sprintf("%s,%v\n", s, avg)
 		}
 	}
-	msg := message.NewTripsBatchMessage("", "", []string{result})
+	msg := message.NewResultsBatchMessage("", clientID, []string{result})
 	m.producer.PublishMessage(msg, "")
-	eof := message.NewTripsEOFMessage("1")
+	eof := message.NewResultsEOFMessage("1", clientID)
 	m.producer.PublishMessage(eof, "eof")
 }

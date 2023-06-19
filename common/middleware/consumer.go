@@ -16,7 +16,7 @@ type Consumer struct {
 	conn           *amqp.Connection
 	ch             *amqp.Channel
 	msgChannel     <-chan amqp.Delivery
-	eofsReceived   map[string]int
+	eofsReceived   map[string]map[string]int
 	config         ConsumerConfig
 	sigtermChannel chan os.Signal
 }
@@ -136,11 +136,7 @@ func NewConsumer(configID string) (*Consumer, error) {
 	sigtermChannel := make(chan os.Signal, 1)
 	signal.Notify(sigtermChannel, syscall.SIGTERM)
 
-	eofsReceived := map[string]int{
-		message.TripsEOF:    0,
-		message.StationsEOF: 0,
-		message.WeatherEOF:  0,
-	}
+	eofsReceived := make(map[string]map[string]int)
 	return &Consumer{
 		conn:           conn,
 		ch:             ch,
@@ -159,14 +155,28 @@ func (c *Consumer) Consume(processMessage func(message.Message)) {
 		case delivery := <-c.msgChannel:
 			msg := message.Deserialize(string(delivery.Body))
 			if msg.IsEOF() {
-				c.eofsReceived[msg.MsgType] += 1
-				fmt.Printf("Received %s %v of %v \n", msg.MsgType, c.eofsReceived[msg.MsgType], c.config.previousStageInstances)
+				if _, ok := c.eofsReceived[msg.ClientID]; !ok {
+					c.eofsReceived[msg.ClientID] = map[string]int{
+						message.TripsEOF:    0,
+						message.StationsEOF: 0,
+						message.WeatherEOF:  0,
+					}
+					c.eofsReceived[msg.ClientID][msg.MsgType] = 1
+				} else {
+					c.eofsReceived[msg.ClientID][msg.MsgType] += 1
+				}
+				fmt.Printf("[Client %s] Received %s %v of %v \n", msg.ClientID, msg.MsgType, c.eofsReceived[msg.ClientID][msg.MsgType], c.config.previousStageInstances)
 
-				if c.eofsReceived[msg.MsgType] == c.config.previousStageInstances {
-					fmt.Printf("Received all %s eofs\n", msg.MsgType)
+				if c.eofsReceived[msg.ClientID][msg.MsgType] == c.config.previousStageInstances {
+					fmt.Printf("[Client %s] Received all %s eofs\n", msg.ClientID, msg.MsgType)
 					processMessage(msg)
+					if msg.MsgType == message.ResultsEOF {
+						delivery.Ack(false)
+						return
+					}
 				}
 				delivery.Ack(false)
+
 				continue
 			}
 			processMessage(msg)

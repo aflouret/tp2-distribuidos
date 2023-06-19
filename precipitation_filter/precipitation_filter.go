@@ -50,11 +50,11 @@ func (f *PrecipitationFilter) processMessage(msg message.Message) {
 	filteredTrips := f.filter(trips)
 
 	if len(filteredTrips) > 0 {
-		filteredTripsBatch := message.NewTripsBatchMessage(msg.ID, "", filteredTrips)
+		filteredTripsBatch := message.NewTripsBatchMessage(msg.ID, msg.ClientID, "", filteredTrips)
 		f.producer.PublishMessage(filteredTripsBatch, "")
 
 		if f.msgCount%20000 == 0 {
-			fmt.Printf("Time: %s Received batch %v\n", time.Since(f.startTime).String(), msg.ID)
+			fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(f.startTime).String(), msg.ID)
 		}
 	}
 

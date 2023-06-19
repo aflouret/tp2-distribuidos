@@ -42,8 +42,8 @@ func (h *ClientHandler) Run() {
 	}
 	defer listener.Close()
 
-	fmt.Println("ClientHandler listening on port 12345")
 	for {
+		fmt.Println("ClientHandler listening on port 12345")
 		conn, err := listener.Accept()
 		if err != nil {
 			fmt.Printf("Error accepting connection: %v\n", err)
@@ -77,11 +77,11 @@ func (h *ClientHandler) handleConnection(conn net.Conn) {
 		case protocol.BeginWeather:
 			h.handleWeather(conn, id, msg.Payload)
 		case protocol.EndStaticData:
-			h.handleEndStaticData(conn)
+			h.handleEndStaticData(conn, id)
 		case protocol.BeginTrips:
 			h.handleTrips(conn, id, msg.Payload)
 		case protocol.GetResults:
-			h.handleResults(conn)
+			h.handleResults(conn, id)
 			return
 		}
 	}
@@ -132,7 +132,7 @@ func (h *ClientHandler) readBatchesAndSend(conn net.Conn, id string, city string
 		protocol.Send(conn, protocol.Message{Type: protocol.Ack, Payload: ""})
 		batchID := strconv.Itoa(batchCounter)
 		lines := strings.Split(msg.Payload, ";")
-		batchMsg := message.NewBatchMessage(batchMessageType, batchID, city, lines)
+		batchMsg := message.NewBatchMessage(batchMessageType, batchID, id, city, lines)
 		h.tripsProducer.PublishMessage(batchMsg, "")
 		if batchCounter%10000 == 0 {
 			fmt.Printf("[CLIENT %s] Time: %s Received batch %s\n", id, time.Since(startTime).String(), batchID)
@@ -141,17 +141,17 @@ func (h *ClientHandler) readBatchesAndSend(conn net.Conn, id string, city string
 	}
 }
 
-func (h *ClientHandler) handleEndStaticData(conn net.Conn) {
-	stationsEOF := message.NewStationsEOFMessage("1")
+func (h *ClientHandler) handleEndStaticData(conn net.Conn, id string) {
+	stationsEOF := message.NewStationsEOFMessage("1", id)
 	h.tripsProducer.PublishMessage(stationsEOF, "")
-	weatherEOF := message.NewWeatherEOFMessage("1")
+	weatherEOF := message.NewWeatherEOFMessage("1", id)
 	h.tripsProducer.PublishMessage(weatherEOF, "")
 	protocol.Send(conn, protocol.Message{Type: protocol.Ack, Payload: ""})
 }
 
-func (h *ClientHandler) handleResults(conn net.Conn) {
+func (h *ClientHandler) handleResults(conn net.Conn, id string) {
 	protocol.Send(conn, protocol.Message{Type: protocol.Ack, Payload: ""})
-	tripsEOF := message.NewTripsEOFMessage("1")
+	tripsEOF := message.NewTripsEOFMessage("1", id)
 	h.tripsProducer.PublishMessage(tripsEOF, "")
 	h.resultsConsumer.Consume(func(msg message.Message) {
 		if msg.IsEOF() {

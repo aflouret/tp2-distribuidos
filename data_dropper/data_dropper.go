@@ -76,15 +76,15 @@ func (d *DataDropper) processTripsMessage(msg message.Message) {
 	sanitizedTrips := d.sanitize(trips)
 
 	weatherJoinerTrips := d.dropDataForWeatherJoiner(sanitizedTrips)
-	weatherJoinerMessage := message.NewTripsBatchMessage(msg.ID, msg.City, weatherJoinerTrips)
+	weatherJoinerMessage := message.NewTripsBatchMessage(msg.ID, msg.ClientID, msg.City, weatherJoinerTrips)
 	d.weatherJoinerProducer.PublishMessage(weatherJoinerMessage, "")
 
 	stationsJoinerTrips := d.dropDataForStationsJoiner(sanitizedTrips)
-	stationsJoinerMessage := message.NewTripsBatchMessage(msg.ID, msg.City, stationsJoinerTrips)
+	stationsJoinerMessage := message.NewTripsBatchMessage(msg.ID, msg.ClientID, msg.City, stationsJoinerTrips)
 	d.stationsJoinerProducer.PublishMessage(stationsJoinerMessage, "")
 
 	if d.msgCount%20000 == 0 {
-		fmt.Printf("Time: %s Received batch %v\n", time.Since(d.startTime).String(), msg.ID)
+		fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(d.startTime).String(), msg.ID)
 	}
 	d.msgCount++
 }
