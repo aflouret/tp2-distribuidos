@@ -28,12 +28,8 @@ mutex = threading.Lock()
 
 class Worker:
 
-    def run(self, attendant):
-        print("Start Working")
-        with open("test.txt", "a") as file:
-            file.write(attendant+"\n")
-        sleep(30)
-        print("Oops! I'm dying x_x")
+    def run(self):
+        pass
 
 
 class LeaderGroup:
@@ -75,7 +71,7 @@ class LeaderGroup:
             if self.leader == self.id:
                 pinging = threading.Thread(target=self.pinging, daemon=False)
                 pinging.start()
-                self.worker.run(self.id)
+                self.worker.run()
                 self.shutdown()
 
     def pinging(self):
