@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"tp1/common/message"
 	"tp1/common/middleware"
-	"tp1/common/utils"
 )
 
 const (
@@ -45,31 +45,50 @@ func (d *DataDropper) Run() {
 	d.consumer.Consume(d.processMessage)
 }
 
-func (d *DataDropper) processMessage(msg string) {
-	if msg == "eof" {
+func (d *DataDropper) processMessage(msg message.Message) {
+
+	switch msg.MsgType {
+	case message.StationsBatch, message.StationsEOF:
+		d.processStationsMessage(msg)
+	case message.WeatherBatch, message.WeatherEOF:
+		d.processWeatherMessage(msg)
+	case message.TripsBatch, message.TripsEOF:
+		d.processTripsMessage(msg)
+	}
+}
+func (d *DataDropper) processWeatherMessage(msg message.Message) {
+	d.weatherJoinerProducer.PublishMessage(msg, "weather")
+}
+
+func (d *DataDropper) processStationsMessage(msg message.Message) {
+	d.stationsJoinerProducer.PublishMessage(msg, "stations")
+}
+
+func (d *DataDropper) processTripsMessage(msg message.Message) {
+	if msg.IsEOF() {
 		d.stationsJoinerProducer.PublishMessage(msg, "")
 		d.weatherJoinerProducer.PublishMessage(msg, "")
 		return
 	}
 
-	id, city, trips := utils.ParseBatch(msg)
-	sanitizedTrips := d.sanitize(trips)
+	sanitizedTrips := d.sanitize(msg)
 
 	weatherJoinerTrips := d.dropDataForWeatherJoiner(sanitizedTrips)
-	weatherJoinerBatch := utils.CreateBatch(id, city, weatherJoinerTrips)
-	d.weatherJoinerProducer.PublishMessage(weatherJoinerBatch, "")
+	weatherJoinerMessage := message.NewTripsBatchMessage(msg.ID, msg.ClientID, msg.City, weatherJoinerTrips)
+	d.weatherJoinerProducer.PublishMessage(weatherJoinerMessage, "")
 
 	stationsJoinerTrips := d.dropDataForStationsJoiner(sanitizedTrips)
-	stationsJoinerBatch := utils.CreateBatch(id, city, stationsJoinerTrips)
-	d.stationsJoinerProducer.PublishMessage(stationsJoinerBatch, "")
+	stationsJoinerMessage := message.NewTripsBatchMessage(msg.ID, msg.ClientID, msg.City, stationsJoinerTrips)
+	d.stationsJoinerProducer.PublishMessage(stationsJoinerMessage, "")
 
 	if d.msgCount%20000 == 0 {
-		fmt.Printf("Time: %s Received batch %v\n", time.Since(d.startTime).String(), id)
+		fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(d.startTime).String(), msg.ID)
 	}
 	d.msgCount++
 }
 
-func (d *DataDropper) sanitize(trips []string) []string {
+func (d *DataDropper) sanitize(msg message.Message) []string {
+	trips := msg.Batch
 	sanitizedTrips := make([]string, 0, len(trips))
 	for i := range trips {
 		fields := strings.Split(trips[i], ",")

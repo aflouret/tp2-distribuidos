@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"tp1/common/message"
 	"tp1/common/middleware"
-	"tp1/common/utils"
 )
 
 const (
@@ -39,22 +39,22 @@ func (f *PrecipitationFilter) Run() {
 	f.consumer.Consume(f.processMessage)
 }
 
-func (f *PrecipitationFilter) processMessage(msg string) {
-	if msg == "eof" {
+func (f *PrecipitationFilter) processMessage(msg message.Message) {
+	if msg.IsEOF() {
 		f.producer.PublishMessage(msg, "")
 		return
 	}
 
-	id, _, trips := utils.ParseBatch(msg)
+	trips := msg.Batch
 
 	filteredTrips := f.filter(trips)
 
 	if len(filteredTrips) > 0 {
-		filteredTripsBatch := utils.CreateBatch(id, "", filteredTrips)
+		filteredTripsBatch := message.NewTripsBatchMessage(msg.ID, msg.ClientID, "", filteredTrips)
 		f.producer.PublishMessage(filteredTripsBatch, "")
 
 		if f.msgCount%20000 == 0 {
-			fmt.Printf("Time: %s Received batch %v\n", time.Since(f.startTime).String(), id)
+			fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(f.startTime).String(), msg.ID)
 		}
 	}
 

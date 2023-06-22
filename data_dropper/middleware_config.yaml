@@ -1,12 +1,11 @@
 consumer:
   exchange_name: data_dropper
   prev_stage_instances_env: PREV_STAGE_INSTANCES
-  route_by_id: true
 stations_joiner_producer:
-  exchange_name: stations_joiner_trips
+  exchange_name: stations_joiner
   next_stage_instances_env: STATIONS_JOINER_INSTANCES
   route_by_id: true
 weather_joiner_producer:
-  exchange_name: weather_joiner_trips
+  exchange_name: weather_joiner
   next_stage_instances_env: WEATHER_JOINER_INSTANCES
   route_by_id: true

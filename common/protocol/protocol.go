@@ -2,6 +2,8 @@ package protocol
 
 import (
 	"encoding/binary"
+	"fmt"
+	"io"
 	"net"
 )
 
@@ -40,6 +42,9 @@ func NewControlMessage(msgType uint8, payload string) Message {
 func Send(conn net.Conn, msg Message) error {
 	payload := []byte(msg.Payload)
 	length := len(payload)
+	if length > 65535 {
+		panic(fmt.Sprintf("length (%v) exceeded 65535. Msg: %v", length, msg))
+	}
 
 	bytes := []byte{msg.Type}
 	bytes = binary.BigEndian.AppendUint16(bytes, uint16(length))
@@ -92,13 +97,20 @@ func sendAll(conn net.Conn, bytes []byte) error {
 }
 
 func recvAll(conn net.Conn, length int) ([]byte, error) {
-	bytes := make([]byte, length)
+	bytes := make([]byte, 0, length)
 	totalRead := 0
 	for totalRead < length {
-		read, err := conn.Read(bytes)
+		tmpBuf := make([]byte, length)
+		read, err := conn.Read(tmpBuf)
+		if err == io.EOF && read > 0 {
+			bytes = append(bytes, tmpBuf[:read]...)
+			totalRead += read
+			return bytes, nil
+		}
 		if err != nil {
 			return nil, err
 		}
+		bytes = append(bytes, tmpBuf[:read]...)
 		totalRead += read
 	}
 	return bytes, nil

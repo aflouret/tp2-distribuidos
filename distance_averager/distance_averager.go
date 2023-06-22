@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"tp1/common/message"
 	"tp1/common/middleware"
-	"tp1/common/utils"
 )
 
 const (
@@ -22,13 +22,13 @@ type average struct {
 type DistanceAverager struct {
 	producer              *middleware.Producer
 	consumer              *middleware.Consumer
-	avgDistancesByStation map[string]average
+	avgDistancesByStation map[string]map[string]average
 	msgCount              int
 	startTime             time.Time
 }
 
 func NewDistanceAverager(consumer *middleware.Consumer, producer *middleware.Producer) *DistanceAverager {
-	avgDistancesByStation := make(map[string]average)
+	avgDistancesByStation := make(map[string]map[string]average)
 
 	return &DistanceAverager{
 		producer:              producer,
@@ -43,25 +43,29 @@ func (a *DistanceAverager) Run() {
 
 	a.startTime = time.Now()
 	a.consumer.Consume(a.processMessage)
-	a.sendResults()
 }
 
-func (a *DistanceAverager) processMessage(msg string) {
-	if msg == "eof" {
+func (a *DistanceAverager) processMessage(msg message.Message) {
+	if msg.IsEOF() {
+		a.sendResults(msg.ClientID)
+		delete(a.avgDistancesByStation, msg.ClientID)
 		return
 	}
 
-	id, _, trips := utils.ParseBatch(msg)
-
-	a.updateAverage(trips)
+	a.updateAverage(msg)
 
 	if a.msgCount%20000 == 0 {
-		fmt.Printf("Time: %s Received batch %v\n", time.Since(a.startTime).String(), id)
+		fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(a.startTime).String(), msg.ID)
 	}
 	a.msgCount++
 }
 
-func (a *DistanceAverager) updateAverage(trips []string) {
+func (a *DistanceAverager) updateAverage(msg message.Message) {
+	trips := msg.Batch
+	avgDistancesByStation, ok := a.avgDistancesByStation[msg.ClientID]
+	if !ok {
+		avgDistancesByStation = make(map[string]average)
+	}
 	for _, trip := range trips {
 		fields := strings.Split(trip, ",")
 		endStationName := fields[endStationNameIndex]
@@ -71,21 +75,24 @@ func (a *DistanceAverager) updateAverage(trips []string) {
 			continue
 		}
 
-		if d, ok := a.avgDistancesByStation[endStationName]; ok {
+		if d, ok := avgDistancesByStation[endStationName]; ok {
 			newAvg := (d.avg*float64(d.count) + distance) / float64(d.count+1)
 			d.avg = newAvg
 			d.count++
-			a.avgDistancesByStation[endStationName] = d
+			avgDistancesByStation[endStationName] = d
 		} else {
-			a.avgDistancesByStation[endStationName] = average{avg: distance, count: 1}
+			avgDistancesByStation[endStationName] = average{avg: distance, count: 1}
 		}
 	}
+	a.avgDistancesByStation[msg.ClientID] = avgDistancesByStation
 }
 
-func (a *DistanceAverager) sendResults() {
-	for k, v := range a.avgDistancesByStation {
+func (a *DistanceAverager) sendResults(clientID string) {
+	for k, v := range a.avgDistancesByStation[clientID] {
 		result := fmt.Sprintf("%s,%v,%v", k, v.avg, v.count)
-		a.producer.PublishMessage(result, "")
+		msg := message.NewTripsBatchMessage("", clientID, "", []string{result})
+		a.producer.PublishMessage(msg, "")
 	}
-	a.producer.PublishMessage("eof", "")
+	eof := message.NewTripsEOFMessage("1", clientID)
+	a.producer.PublishMessage(eof, "")
 }

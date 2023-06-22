@@ -13,7 +13,7 @@ func main() {
 		minimumPrecipitations = 30
 	}
 
-	consumer, err := middleware.NewConsumer("consumer")
+	consumer, err := middleware.NewConsumer("consumer", "")
 	if err != nil {
 		log.Fatal(err)
 	}

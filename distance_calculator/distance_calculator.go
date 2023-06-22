@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"tp1/common/message"
 	"tp1/common/middleware"
-	"tp1/common/utils"
 )
 
 const (
@@ -42,22 +42,22 @@ func (c *DistanceCalculator) Run() {
 	c.consumer.Consume(c.processMessage)
 }
 
-func (c *DistanceCalculator) processMessage(msg string) {
-	if msg == "eof" {
+func (c *DistanceCalculator) processMessage(msg message.Message) {
+	if msg.IsEOF() {
 		c.producer.PublishMessage(msg, "")
 		return
 	}
 
-	id, _, trips := utils.ParseBatch(msg)
+	trips := msg.Batch
 
 	tripsWithDistance := c.calculateDistance(trips)
 
 	if len(tripsWithDistance) > 0 {
-		tripsWithDistanceBatch := utils.CreateBatch(id, "", tripsWithDistance)
+		tripsWithDistanceBatch := message.NewTripsBatchMessage(msg.ID, msg.ClientID, "", tripsWithDistance)
 		c.producer.PublishMessage(tripsWithDistanceBatch, "")
 
 		if c.msgCount%20000 == 0 {
-			fmt.Printf("Time: %s Received batch %v\n", time.Since(c.startTime).String(), id)
+			fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(c.startTime).String(), msg.ID)
 		}
 	}
 
