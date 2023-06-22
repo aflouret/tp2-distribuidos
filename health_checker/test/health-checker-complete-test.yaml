@@ -1,0 +1,61 @@
+name: health-checker-complete-test
+services:
+  checker-1:
+    container_name: checker-1
+    image: checker-test:latest
+    entrypoint: python3 /app/main.py
+    volumes:
+      - ../main.py:/app/main.py
+      - ../health_checker.py:/app/health_checker.py
+      - ../messaging_protocol.py:/app/messaging_protocol.py
+      - ../leader_election/:/app/leader_election/
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - PEERS=checker-1,checker-2,checker-3
+      - TARGETS=target-1,target-2,target-3
+      - HOSTNAME=checker-1
+
+  checker-2:
+    container_name: checker-2
+    image: checker-test:latest
+    entrypoint: python3 /app/main.py
+    volumes:
+      - ../main.py:/app/main.py
+      - ../health_checker.py:/app/health_checker.py
+      - ../messaging_protocol.py:/app/messaging_protocol.py
+      - ../leader_election/:/app/leader_election/
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - PEERS=checker-1,checker-2,checker-3
+      - TARGETS=target-1,target-2,target-3
+      - HOSTNAME=checker-2
+
+  checker-3:
+    container_name: checker-3
+    image: checker-test:latest
+    entrypoint: python3 /app/main.py
+    volumes:
+      - ../main.py:/app/main.py
+      - ../health_checker.py:/app/health_checker.py
+      - ../messaging_protocol.py:/app/messaging_protocol.py
+      - ../leader_election/:/app/leader_election/
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - PEERS=checker-1,checker-2,checker-3
+      - TARGETS=target-1,target-2,target-3
+      - HOSTNAME=checker-3
+
+  target-1:
+    container_name: target-1
+    image: replier-test:latest
+    entrypoint: /replier
+
+  target-2:
+    container_name: target-2
+    image: replier-test:latest
+    entrypoint: /replier
+
+  target-3:
+    container_name: target-3
+    image: replier-test:latest
+    entrypoint: /replier

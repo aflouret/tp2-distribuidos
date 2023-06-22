@@ -1,4 +1,5 @@
 from leader_election.leader_group import LeaderGroup, Worker
+from health_checker import HealthChecker
 import logging
 import os
 
@@ -9,19 +10,33 @@ logging.basicConfig(
 )
 
 
-NODE_ID = int(os.getenv("NODE_ID"))
-GROUP_SIZE = int(os.getenv("GROUP_SIZE"))
-BASE_NAME="checker-"
-HOSTNAME= "checker-"+str(NODE_ID)
+HOSTNAME = os.getenv("HOSTNAME")
+PEERS = os.getenv("PEERS").split(",")
+TARGETS = os.getenv("TARGETS").split(",")
 
-peers = [ BASE_NAME+str(i) for i in range(GROUP_SIZE) if not i == NODE_ID ]
+peers = [x for x in PEERS if not x == HOSTNAME]
+targets = [x for x in TARGETS if not x == HOSTNAME]
 
-logging.info(f"Peers: {peers}")
+
+class CheckerWorker(Worker):
+
+    def __init__(self):
+        self.checker = HealthChecker(targets)
+
+    def run(self):
+        logging.info(f"Executed by: {HOSTNAME}")
+        self.checker.run()
+        logging.info(f"Leader finished")
+
 
 def main():
 
-    checker = Worker()
-    group = LeaderGroup(checker, NODE_ID, GROUP_SIZE,HOSTNAME, peers)
+    logging.info(f"Instance hostname: {HOSTNAME}")
+    logging.info(f"Peers: {peers}")
+    logging.info(f"Targets: {targets}")
+
+    checker = CheckerWorker()
+    group = LeaderGroup(checker, 0, len(PEERS), HOSTNAME, peers)
     group.run()
 
 

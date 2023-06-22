@@ -1,0 +1,16 @@
+FROM golang:1.19 AS builder
+
+RUN mkdir -p /build
+WORKDIR /build/
+
+COPY ../replier/ ./replier/
+
+WORKDIR /build/replier
+
+RUN go build -o /bin/replier
+
+# Deploy the application binary into a lean image
+FROM busybox:latest
+COPY --from=builder /bin/replier /replier
+
+ENTRYPOINT ["/bin/sh"]

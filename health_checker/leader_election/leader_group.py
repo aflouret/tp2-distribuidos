@@ -37,7 +37,7 @@ class LeaderGroup:
     def __init__(self, worker: Worker, id_node: int, group_size: int, addr, hosts):
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        log.debug(f"Bnding to {(addr, PORT)}")
+        log.debug(f"Bully Election | Binding to {(addr, PORT)}")
         self.sock.bind((addr, PORT))
         self.worker = worker
         self.id = addr
@@ -56,7 +56,7 @@ class LeaderGroup:
         t = threading.Thread(target=self.listen_messages, daemon=False)
         t.start()
 
-        log.info(f"Starting node {self.id} in group of {self.group_size} members.")
+        log.info(f"Bully Election | Starting node {self.id} in group of {self.group_size} members.")
 
         while self.running:
 
@@ -64,10 +64,10 @@ class LeaderGroup:
             self.iddle_stage.start(TIMEOUT_LEADER)
             self.leader = -1
 
-            log.info("Leader fallen. Starting election.")
+            log.info(f"Bully Election | Leader fallen. Starting election.")
             self.start_election()
 
-            log.info(f"Leader chosen: {self.leader}")
+            log.info(f"Bully Election | Leader chosen: {self.leader}")
             if self.leader == self.id:
                 pinging = threading.Thread(target=self.pinging, daemon=False)
                 pinging.start()
@@ -80,7 +80,7 @@ class LeaderGroup:
         while self.running:
             for idx, data in self.group.items():
                 if idx == self.id: continue
-                log.debug(f"Ping to: {idx}")
+                log.debug(f"Bully Election | Ping to: {idx}")
                 self.send(data["addr"], PING)
             timer.start(PING_INTERVAL)
 
@@ -94,13 +94,13 @@ class LeaderGroup:
         has_answer = self.election()
 
         if not has_answer:
-            log.info("Election got no answer.")
+            log.info(f"Bully Election | Election got no answer.")
             # Auto proclamarse lider
             self.coordinate()
             self.leader = self.id
 
         else:
-            log.info(f"Election was replied. Waiting for coordination..")
+            log.info(f"Bully Election | Election was replied. Waiting for coordination..")
             coordination_stage = Timer()
             coordination_stage.start(TIMEOUT_COORDINATION)
 
@@ -117,7 +117,7 @@ class LeaderGroup:
             if node["alive"]:
                 return True
 
-            log.debug(f"Sending election to {idx}")
+            log.debug(f"Bully Election | Sending election to {idx}")
             self.send(node["addr"], ELECTION_MSG)
 
         election_stage.start(TIMEOUT_ELECTION/RETRIES)
@@ -137,7 +137,7 @@ class LeaderGroup:
             if node["coordinated"]:
                 continue
 
-            log.debug(f"Sending coordination to {idx}")
+            log.debug(f"Bully Election | Sending coordination to {idx}")
             self.send(node["addr"], COORDINATOR_MSG)
 
         coordination_stage.start(TIMEOUT_COORDINATION/RETRIES)
@@ -161,14 +161,14 @@ class LeaderGroup:
 
             # Handle messages
             if msg == ELECTION_MSG:
-                log.debug(f"New election detected.. {node_id}")
+                log.debug(f"Bully Election | New election detected.. {node_id}")
                 self.send(addr[0], IMALIVE_MSG)
 
             if msg == IMALIVE_MSG:
                 self.group[node_id]["alive"] = True
 
             if msg == COORDINATOR_MSG:
-                log.info(f"New lider detected.. {node_id}")
+                log.info(f"Bully Election | New lider detected.. {node_id}")
                 self.send(addr[0], OK_CORDINATOR_MSG)
                 self.leader = node_id
 
@@ -176,12 +176,12 @@ class LeaderGroup:
                 self.group[node_id]["coordinated"] = True
 
             if msg == PING:
-                log.debug(f"Ping received! resetting timer...")
+                log.debug(f"Bully Election | Ping received! resetting timer...")
                 self.iddle_stage.reset()
 
     def send(self, addr, msg):
 
-        log.debug(f"Sending message to {addr} >> {msg}")
+        log.debug(f"Bully Election | Sending message to {addr} >> {msg}")
 
         with mutex:
             msg = self.id + "." + str(self.id_msg) + "." + msg
@@ -190,14 +190,14 @@ class LeaderGroup:
             try:
                 self.sock.sendto(msg, (addr, PORT))
             except socket.gaierror as e:
-                log.error(f"Error sending to {addr}. Maybe host is down and has no IP.")
+                log.error(f"Bully Election | Error sending to {addr}. Maybe host is down and has no IP.")
             self.id_msg += 1
 
     def receive(self):
 
         data, addr = self.sock.recvfrom(MSG_SIZE)
 
-        log.debug(f"Received message: {data}")
+        log.debug(f"Bully Election | Received message: {data}")
 
         return addr, data.rstrip().decode().split(".")
 

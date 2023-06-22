@@ -28,10 +28,11 @@ class HealthChecker:
 
     def __init__(self, targets):
         self.targets = targets
-        self.running = True
+        self.running = False
 
     def run(self):
 
+        self.running = True
         thread_poll = []
 
         # Connect stage
