@@ -60,7 +60,7 @@ func NewProducer(configID string) (*Producer, error) {
 	err = ch.ExchangeDeclare(
 		config.exchangeName, // name
 		"direct",            // type
-		false,               // durable
+		true,                // durable
 		false,               // auto-deleted
 		false,               // internal
 		false,               // no-wait
@@ -93,7 +93,7 @@ func (p *Producer) PublishMessage(msg message.Message, routingKey string) {
 		false,
 		false,
 		amqp.Publishing{
-			DeliveryMode: amqp.Transient,
+			DeliveryMode: amqp.Persistent,
 			ContentType:  "text/plain",
 			Body:         []byte(message.Serialize(msg)),
 		},
