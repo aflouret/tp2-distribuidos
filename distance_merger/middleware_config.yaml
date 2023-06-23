@@ -1,6 +1,9 @@
 consumer:
   exchange_name: distance_merger
   prev_stage_instances_env: PREV_STAGE_INSTANCES
+  messages_to_store:
+    - TE
+    - T
 producer:
   exchange_name: results
   next_stage_instances_env: NEXT_STAGE_INSTANCES

@@ -1,6 +1,9 @@
 consumer:
   exchange_name: results
   prev_stage_instances_env: MERGER_INSTANCES
+  messages_to_store:
+    - RE
+    - R
 producer:
   exchange_name: data_dropper
   next_stage_instances_env: DATA_DROPPER_INSTANCES

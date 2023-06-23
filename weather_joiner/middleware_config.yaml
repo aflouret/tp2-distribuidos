@@ -1,6 +1,10 @@
 consumer:
   exchange_name: weather_joiner
   prev_stage_instances_env: DATA_DROPPER_INSTANCES
+  messages_to_store:
+    - TE
+    - WE
+    - W
 producer:
   exchange_name: precipitation_filter
   next_stage_instances_env: NEXT_STAGE_INSTANCES

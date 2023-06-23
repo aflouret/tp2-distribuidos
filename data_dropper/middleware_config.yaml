@@ -1,6 +1,8 @@
 consumer:
   exchange_name: data_dropper
   prev_stage_instances_env: PREV_STAGE_INSTANCES
+  messages_to_store:
+    - TE
 stations_joiner_producer:
   exchange_name: stations_joiner
   next_stage_instances_env: STATIONS_JOINER_INSTANCES

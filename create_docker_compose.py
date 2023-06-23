@@ -51,192 +51,9 @@ for i in range(0, client_instances):
         target: /config.yaml
 '''
 
-data_dropper_string = ""
-for i in range(0, data_dropper_instances):
-    data_dropper_string = data_dropper_string + f'''
-  data_dropper_{i}:
-    container_name: data_dropper_{i}
-    environment:
-      - ID={i}
-      - PREV_STAGE_INSTANCES={client_handler_instances}
-      - WEATHER_JOINER_INSTANCES={weather_joiner_instances}
-      - STATIONS_JOINER_INSTANCES={stations_joiner_instances}
-      - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
-    image: data_dropper:latest
-    entrypoint: /data_dropper
-    restart: on-failure
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    volumes:
-      - type: bind
-        source: ./data_dropper/middleware_config.yaml
-        target: /middleware_config.yaml
-'''
-
-
-weather_joiner_string = ""
-for i in range(0, weather_joiner_instances):
-    weather_joiner_string = weather_joiner_string + f'''
-  weather_joiner_{i}:
-    container_name: weather_joiner_{i}
-    environment:
-      - ID={i}
-      - CLIENT_HANDLER_INSTANCES={client_handler_instances}
-      - DATA_DROPPER_INSTANCES={data_dropper_instances}
-      - NEXT_STAGE_INSTANCES={precipitation_filter_instances}
-      - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
-    image: weather_joiner:latest
-    entrypoint: /weather_joiner
-    restart: on-failure
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    volumes:
-      - type: bind
-        source: ./weather_joiner/middleware_config.yaml
-        target: /middleware_config.yaml
-''' 
-
-
-stations_joiner_string = ""
-for i in range(0, stations_joiner_instances):
-    stations_joiner_string = stations_joiner_string + f'''
-  stations_joiner_{i}:
-    container_name: stations_joiner_{i}
-    environment:
-      - ID={i}
-      - CLIENT_HANDLER_INSTANCES={client_handler_instances}
-      - DATA_DROPPER_INSTANCES={data_dropper_instances}
-      - YEAR_FILTER_INSTANCES={year_filter_instances}
-      - DISTANCE_CALCULATOR_INSTANCES={distance_calculator_instances}
-      - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
-    image: stations_joiner:latest
-    entrypoint: /stations_joiner
-    restart: on-failure
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    volumes:
-      - type: bind
-        source: ./stations_joiner/middleware_config.yaml
-        target: /middleware_config.yaml
-''' 
-
-precipitation_filter_string = ""
-for i in range(0, precipitation_filter_instances):
-    precipitation_filter_string = precipitation_filter_string + f'''
-  precipitation_filter_{i}:
-    container_name: precipitation_filter_{i}
-    environment:
-      - ID={i}
-      - PREV_STAGE_INSTANCES={weather_joiner_instances}
-      - NEXT_STAGE_INSTANCES={duration_averager_instances}
-      - MIN_PRECIPITATIONS={minimum_precipitations}
-      - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
-    image: precipitation_filter:latest
-    entrypoint: /precipitation_filter
-    restart: on-failure
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    volumes:
-      - type: bind
-        source: ./precipitation_filter/middleware_config.yaml
-        target: /middleware_config.yaml
-'''   
-
-distance_calculator_string = ""
-for i in range(0, distance_calculator_instances):
-    distance_calculator_string = distance_calculator_string + f'''
-  distance_calculator_{i}:
-    container_name: distance_calculator_{i}
-    environment:
-      - ID={i}
-      - PREV_STAGE_INSTANCES={stations_joiner_instances}
-      - NEXT_STAGE_INSTANCES={distance_averager_instances}
-      - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
-    image: distance_calculator:latest
-    entrypoint: /distance_calculator
-    restart: on-failure
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    volumes:
-      - type: bind
-        source: ./distance_calculator/middleware_config.yaml
-        target: /middleware_config.yaml
-''' 
-
-duration_averager_string = ""
-for i in range(0, duration_averager_instances):
-    duration_averager_string = duration_averager_string + f'''
-  duration_averager_{i}:
-    container_name: duration_averager_{i}
-    environment:
-      - ID={i}
-      - PREV_STAGE_INSTANCES={precipitation_filter_instances}
-      - NEXT_STAGE_INSTANCES=1
-      - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
-    image: duration_averager:latest
-    entrypoint: /duration_averager
-    restart: on-failure
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    volumes:
-      - type: bind
-        source: ./duration_averager/middleware_config.yaml
-        target: /middleware_config.yaml
-'''   
-
-distance_averager_string = ""
-for i in range(0, distance_averager_instances):
-    distance_averager_string = distance_averager_string + f'''
-  distance_averager_{i}:
-    container_name: distance_averager_{i}
-    environment:
-      - ID={i}
-      - PREV_STAGE_INSTANCES={distance_calculator_instances}
-      - NEXT_STAGE_INSTANCES=1
-      - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
-    image: distance_averager:latest
-    entrypoint: /distance_averager
-    restart: on-failure
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    volumes:
-      - type: bind
-        source: ./distance_averager/middleware_config.yaml
-        target: /middleware_config.yaml
-'''   
-
-year_filter_string = ""
-for i in range(0, year_filter_instances):
-    year_filter_string = year_filter_string + f'''
-  year_filter_{i}:
-    container_name: year_filter_{i}
-    environment:
-      - ID={i}
-      - PREV_STAGE_INSTANCES={stations_joiner_instances}
-      - NEXT_STAGE_INSTANCES={trip_counter_instances}
-      - YEAR_1={year_1}
-      - YEAR_2={year_2}
-      - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
-    image: year_filter:latest
-    entrypoint: /year_filter
-    restart: on-failure
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    volumes:
-      - type: bind
-        source: ./year_filter/middleware_config.yaml
-        target: /middleware_config.yaml
-''' 
 
 trip_counter_string = ""
+trip_counter_dependency_string = ""
 for i in range(0, trip_counter_instances):
     trip_counter_string = trip_counter_string + f'''
   trip_counter_{i}:
@@ -252,14 +69,248 @@ for i in range(0, trip_counter_instances):
     entrypoint: /trip_counter
     restart: on-failure
     depends_on:
-      rabbitmq:
-        condition: service_healthy
+      - count_merger
     volumes:
       - type: bind
         source: ./trip_counter/middleware_config.yaml
         target: /middleware_config.yaml
-'''   
+      - type: bind
+        source: ./data/recovery_data/trip_counter_{i}
+        target: /recovery_files
+'''
+    trip_counter_dependency_string = trip_counter_dependency_string + f'''      - trip_counter_{i}
+'''
 
+
+duration_averager_string = ""
+duration_averager_dependency_string = ""
+for i in range(0, duration_averager_instances):
+    duration_averager_string = duration_averager_string + f'''
+  duration_averager_{i}:
+    container_name: duration_averager_{i}
+    environment:
+      - ID={i}
+      - PREV_STAGE_INSTANCES={precipitation_filter_instances}
+      - NEXT_STAGE_INSTANCES=1
+      - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
+    image: duration_averager:latest
+    entrypoint: /duration_averager
+    restart: on-failure
+    depends_on:
+      - duration_merger
+    volumes:
+      - type: bind
+        source: ./duration_averager/middleware_config.yaml
+        target: /middleware_config.yaml
+      - type: bind
+        source: ./data/recovery_data/duration_averager_{i}
+        target: /recovery_files
+'''
+    duration_averager_dependency_string = duration_averager_dependency_string + f'''      - duration_averager_{i}
+'''
+
+
+distance_averager_string = ""
+distance_averager_dependency_string = ""
+for i in range(0, distance_averager_instances):
+    distance_averager_string = distance_averager_string + f'''
+  distance_averager_{i}:
+    container_name: distance_averager_{i}
+    environment:
+      - ID={i}
+      - PREV_STAGE_INSTANCES={distance_calculator_instances}
+      - NEXT_STAGE_INSTANCES=1
+      - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
+    image: distance_averager:latest
+    entrypoint: /distance_averager
+    restart: on-failure
+    depends_on:
+      - distance_merger
+    volumes:
+      - type: bind
+        source: ./distance_averager/middleware_config.yaml
+        target: /middleware_config.yaml
+      - type: bind
+        source: ./data/recovery_data/distance_averager_{i}
+        target: /recovery_files
+'''
+    distance_averager_dependency_string = distance_averager_dependency_string + f'''      - distance_averager_{i}
+'''
+
+
+precipitation_filter_string = ""
+precipitation_filter_dependency_string = ""
+for i in range(0, precipitation_filter_instances):
+    precipitation_filter_string = precipitation_filter_string + f'''
+  precipitation_filter_{i}:
+    container_name: precipitation_filter_{i}
+    environment:
+      - ID={i}
+      - PREV_STAGE_INSTANCES={weather_joiner_instances}
+      - NEXT_STAGE_INSTANCES={duration_averager_instances}
+      - MIN_PRECIPITATIONS={minimum_precipitations}
+      - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
+    image: precipitation_filter:latest
+    entrypoint: /precipitation_filter
+    restart: on-failure
+    depends_on:
+{duration_averager_dependency_string}
+    volumes:
+      - type: bind
+        source: ./precipitation_filter/middleware_config.yaml
+        target: /middleware_config.yaml
+      - type: bind
+        source: ./data/recovery_data/precipitation_filter_{i}
+        target: /recovery_files
+'''
+    precipitation_filter_dependency_string = precipitation_filter_dependency_string + f'''      - precipitation_filter_{i}
+'''
+
+distance_calculator_string = ""
+distance_calculator_dependency_string = ""
+for i in range(0, distance_calculator_instances):
+    distance_calculator_string = distance_calculator_string + f'''
+  distance_calculator_{i}:
+    container_name: distance_calculator_{i}
+    environment:
+      - ID={i}
+      - PREV_STAGE_INSTANCES={stations_joiner_instances}
+      - NEXT_STAGE_INSTANCES={distance_averager_instances}
+      - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
+    image: distance_calculator:latest
+    entrypoint: /distance_calculator
+    restart: on-failure
+    depends_on:
+{distance_averager_dependency_string}
+    volumes:
+      - type: bind
+        source: ./distance_calculator/middleware_config.yaml
+        target: /middleware_config.yaml
+      - type: bind
+        source: ./data/recovery_data/distance_calculator_{i}
+        target: /recovery_files
+'''
+    distance_calculator_dependency_string = distance_calculator_dependency_string + f'''      - distance_calculator_{i}
+'''
+
+
+year_filter_string = ""
+year_filter_dependency_string = ""
+for i in range(0, year_filter_instances):
+    year_filter_string = year_filter_string + f'''
+  year_filter_{i}:
+    container_name: year_filter_{i}
+    environment:
+      - ID={i}
+      - PREV_STAGE_INSTANCES={stations_joiner_instances}
+      - NEXT_STAGE_INSTANCES={trip_counter_instances}
+      - YEAR_1={year_1}
+      - YEAR_2={year_2}
+      - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
+    image: year_filter:latest
+    entrypoint: /year_filter
+    restart: on-failure
+    depends_on:
+{trip_counter_dependency_string}
+    volumes:
+      - type: bind
+        source: ./year_filter/middleware_config.yaml
+        target: /middleware_config.yaml
+      - type: bind
+        source: ./data/recovery_data/year_filter_{i}
+        target: /recovery_files
+'''
+    year_filter_dependency_string = year_filter_dependency_string + f'''      - year_filter_{i}
+'''
+
+weather_joiner_string = ""
+weather_joiner_dependency_string = ""
+for i in range(0, weather_joiner_instances):
+    weather_joiner_string = weather_joiner_string + f'''
+  weather_joiner_{i}:
+    container_name: weather_joiner_{i}
+    environment:
+      - ID={i}
+      - CLIENT_HANDLER_INSTANCES={client_handler_instances}
+      - DATA_DROPPER_INSTANCES={data_dropper_instances}
+      - NEXT_STAGE_INSTANCES={precipitation_filter_instances}
+      - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
+    image: weather_joiner:latest
+    entrypoint: /weather_joiner
+    restart: on-failure
+    depends_on:
+{precipitation_filter_dependency_string}
+    volumes:
+      - type: bind
+        source: ./weather_joiner/middleware_config.yaml
+        target: /middleware_config.yaml
+      - type: bind
+        source: ./data/recovery_data/weather_joiner_{i}
+        target: /recovery_files
+''' 
+    weather_joiner_dependency_string = weather_joiner_dependency_string + f'''      - weather_joiner_{i}
+'''
+
+stations_joiner_string = ""
+stations_joiner_dependency_string = ""
+for i in range(0, stations_joiner_instances):
+    stations_joiner_string = stations_joiner_string + f'''
+  stations_joiner_{i}:
+    container_name: stations_joiner_{i}
+    environment:
+      - ID={i}
+      - CLIENT_HANDLER_INSTANCES={client_handler_instances}
+      - DATA_DROPPER_INSTANCES={data_dropper_instances}
+      - YEAR_FILTER_INSTANCES={year_filter_instances}
+      - DISTANCE_CALCULATOR_INSTANCES={distance_calculator_instances}
+      - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
+    image: stations_joiner:latest
+    entrypoint: /stations_joiner
+    restart: on-failure
+    depends_on:
+{year_filter_dependency_string}
+{distance_calculator_dependency_string}
+    volumes:
+      - type: bind
+        source: ./stations_joiner/middleware_config.yaml
+        target: /middleware_config.yaml
+      - type: bind
+        source: ./data/recovery_data/stations_joiner_{i}
+        target: /recovery_files
+'''
+    stations_joiner_dependency_string = stations_joiner_dependency_string + f'''      - stations_joiner_{i}
+'''
+
+
+data_dropper_string = ""
+data_dropper_dependency_string = ""
+for i in range(0, data_dropper_instances):
+    data_dropper_string = data_dropper_string + f'''
+  data_dropper_{i}:
+    container_name: data_dropper_{i}
+    environment:
+      - ID={i}
+      - PREV_STAGE_INSTANCES={client_handler_instances}
+      - WEATHER_JOINER_INSTANCES={weather_joiner_instances}
+      - STATIONS_JOINER_INSTANCES={stations_joiner_instances}
+      - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
+    image: data_dropper:latest
+    entrypoint: /data_dropper
+    restart: on-failure
+    depends_on:
+{weather_joiner_dependency_string}
+{stations_joiner_dependency_string}
+    volumes:
+      - type: bind
+        source: ./data_dropper/middleware_config.yaml
+        target: /middleware_config.yaml
+      - type: bind
+        source: ./data/recovery_data/data_dropper_{i}
+        target: /recovery_files
+'''
+
+    data_dropper_dependency_string = data_dropper_dependency_string + f'''      - data_dropper_{i}
+'''
 
 file_content = f'''services:
   rabbitmq:
@@ -286,12 +337,14 @@ file_content = f'''services:
     entrypoint: /client_handler
     restart: on-failure
     depends_on:
-      rabbitmq:
-        condition: service_healthy
+{data_dropper_dependency_string}
     volumes:
       - type: bind
         source: ./client_handler/middleware_config.yaml
         target: /middleware_config.yaml
+      - type: bind
+        source: ./data/recovery_data/client_handler
+        target: /recovery_files
 
   {client_string}
 
@@ -311,6 +364,9 @@ file_content = f'''services:
       - type: bind
         source: ./duration_merger/middleware_config.yaml
         target: /middleware_config.yaml
+      - type: bind
+        source: ./data/recovery_data/duration_merger
+        target: /recovery_files
   
   count_merger:
     container_name: count_merger
@@ -330,6 +386,9 @@ file_content = f'''services:
       - type: bind
         source: ./count_merger/middleware_config.yaml
         target: /middleware_config.yaml
+      - type: bind
+        source: ./data/recovery_data/count_merger
+        target: /recovery_files
 
   distance_merger:
     container_name: distance_merger
@@ -348,6 +407,9 @@ file_content = f'''services:
       - type: bind
         source: ./distance_merger/middleware_config.yaml
         target: /middleware_config.yaml
+      - type: bind
+        source: ./data/recovery_data/distance_merger
+        target: /recovery_files
 
 {duration_averager_string}        
 {precipitation_filter_string}   

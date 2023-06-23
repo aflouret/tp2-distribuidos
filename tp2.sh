@@ -38,7 +38,7 @@ StopTp(){
     docker compose -f compose.yaml stop -t 5
 
     if [ "$1" == "-k" ]; then
-    docker compose -f compose.yaml down --remove-orphans
+    docker compose -f compose.yaml down -t 1 --remove-orphans
     fi
 
 }   
@@ -53,8 +53,9 @@ RunTp(){
     else
 
         # Docker Compose Up
+        rm -rf ./data/recovery_data
         python3 create_docker_compose.py
-        docker compose up -d --build
+        docker compose up --build
 
     fi
 
