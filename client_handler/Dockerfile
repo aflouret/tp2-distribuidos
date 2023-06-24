@@ -8,7 +8,7 @@ COPY . .
 RUN go mod tidy
 WORKDIR /build/client_handler
 
-RUN CGO_ENABLED=0 GOOS=linux GOGC=off go build -o /bin/client_handler
+RUN CGO_ENABLED=0 GOOS=linux go build -o /bin/client_handler
 
 # Deploy the application binary into a lean image
 FROM busybox:latest

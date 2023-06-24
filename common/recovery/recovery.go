@@ -160,7 +160,7 @@ func parseWriteLine(line string) string {
 
 func openFiles(dir string, flag int) (map[string]*os.File, error) {
 	files := make(map[string]*os.File)
-	entries, err := os.ReadDir("recovery_files")
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 	}
 	for _, entry := range entries {

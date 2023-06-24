@@ -81,7 +81,7 @@ func NewConsumer(configID string, routingKey string) (*Consumer, error) {
 	err = ch.ExchangeDeclare(
 		config.exchangeName, // name
 		"direct",            // type
-		true,                // durable
+		false,               // durable
 		false,               // auto-deleted
 		false,               // internal
 		false,               // no-wait
@@ -94,14 +94,11 @@ func NewConsumer(configID string, routingKey string) (*Consumer, error) {
 	queueName := config.exchangeName + "_" + routingKey + "_" + config.instanceID
 	q, err := ch.QueueDeclare(
 		queueName, // name
-		true,      // durable
+		false,     // durable
 		false,     // delete when unused
 		false,     // exclusive
 		false,     // no-wait
-		amqp.Table{
-			amqp.QueueMaxLenBytesArg: int64(5_000_000_000),
-			amqp.QueueMaxLenArg:      100000,
-		}, // arguments
+		nil,       // arguments
 	)
 	failOnError(err, "Failed to declare a queue")
 
@@ -136,7 +133,7 @@ func NewConsumer(configID string, routingKey string) (*Consumer, error) {
 	fmt.Println("Queue bound")
 
 	err = ch.Qos(
-		1000,  // prefetch count
+		10000, // prefetch count
 		0,     // prefetch size
 		false, // global
 	)
@@ -172,20 +169,22 @@ func NewConsumer(configID string, routingKey string) (*Consumer, error) {
 }
 
 func (c *Consumer) Consume(processMessage func(message.Message)) {
-	fmt.Println("Recovering state")
-	recovery.Recover("recovery_files", func(msg message.Message) {
-		if msg.IsEOF() {
-			c.registerEOF(msg)
-			if c.isLastEOF(msg) {
+	if !c.isResultsConsumer() {
+		fmt.Println("Recovering state")
+		recovery.Recover("recovery_files", func(msg message.Message) {
+			if msg.IsEOF() {
+				c.registerEOF(msg)
+				if c.isLastEOF(msg) {
+					processMessage(msg)
+				}
+			} else {
 				processMessage(msg)
 			}
-		} else {
-			processMessage(msg)
-		}
-	})
-	fmt.Println("Finished recovering")
-	//storageManager, err := recovery.NewStorageManager("recovery_files")
-	//failOnError(err, "Failed to create storage manager")
+		})
+		fmt.Println("Finished recovering")
+	}
+	storageManager, err := recovery.NewStorageManager("recovery_files")
+	failOnError(err, "Failed to create storage manager")
 	for {
 		select {
 		case <-c.sigtermChannel:
@@ -205,8 +204,8 @@ func (c *Consumer) Consume(processMessage func(message.Message)) {
 
 				// Store message if necessary
 				if c.shouldStore(msg) {
-					//err := storageManager.Store(msg)
-					//failOnError(err, fmt.Sprintf("error storing message %v", msg))
+					err := storageManager.Store(msg)
+					failOnError(err, fmt.Sprintf("error storing message %v", msg))
 				}
 
 				// ACK message
@@ -222,8 +221,8 @@ func (c *Consumer) Consume(processMessage func(message.Message)) {
 
 				// Store message if necessary
 				if c.shouldStore(msg) {
-					//err := storageManager.Store(msg)
-					//failOnError(err, fmt.Sprintf("error storing message %v", msg))
+					err := storageManager.Store(msg)
+					failOnError(err, fmt.Sprintf("error storing message %v", msg))
 				}
 
 				// ACK message
@@ -254,6 +253,15 @@ func (c *Consumer) isLastEOF(msg message.Message) bool {
 func (c *Consumer) shouldStore(msg message.Message) bool {
 	for _, t := range c.config.messageTypesToStore {
 		if t == msg.MsgType {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *Consumer) isResultsConsumer() bool {
+	for _, t := range c.config.messageTypesToStore {
+		if t == message.ResultsBatch {
 			return true
 		}
 	}

@@ -8,7 +8,7 @@ COPY . .
 RUN go mod tidy
 WORKDIR /build/data_dropper
 
-RUN CGO_ENABLED=0 GOOS=linux GOGC=off go build -o /bin/data_dropper
+RUN CGO_ENABLED=0 GOOS=linux go build -o /bin/data_dropper
 
 # Deploy the application binary into a lean image
 FROM busybox:latest
