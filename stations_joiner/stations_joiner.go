@@ -90,16 +90,18 @@ func (j *StationsJoiner) processTripsMessage(msg message.Message) {
 		delete(j.stations, msg.ClientID)
 		return
 	}
+	if j.msgCount%5000 == 0 {
+		fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(j.startTime).String(), msg.ID)
+	}
 	trips := msg.Batch
-	joinedTrips := j.joinStations(msg.City, trips, msg.ClientID)
+	joinedTrips := j.joinStations(msg.City, trips, msg.ClientID, msg.ID)
 
 	if len(joinedTrips) > 0 {
-		if j.msgCount%20000 == 0 {
-			fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(j.startTime).String(), msg.ID)
-		}
 
 		yearFilterTrips := j.dropDataForYearFilter(joinedTrips)
+
 		yearFilterBatch := message.NewTripsBatchMessage(msg.ID, msg.ClientID, "", yearFilterTrips)
+
 		j.yearFilterProducer.PublishMessage(yearFilterBatch, "")
 
 		if msg.City == "montreal" {
@@ -107,23 +109,26 @@ func (j *StationsJoiner) processTripsMessage(msg message.Message) {
 			j.distanceCalculatorProducer.PublishMessage(distanceCalculatorBatch, "")
 		}
 	}
+
 	j.msgCount++
+
 }
 
 func getStationKey(code, year, city string) string {
 	return fmt.Sprintf("%s-%s-%s", code, year, city)
 }
 
-func (j *StationsJoiner) joinStations(city string, trips []string, clientID string) []string {
+func (j *StationsJoiner) joinStations(city string, trips []string, clientID string, id string) []string {
 	stations := j.stations[clientID]
-	joinedTrips := make([]string, 0, len(trips))
+	joinedTrips := make([]string, len(trips))
+	i := 0
+	timer := time.Now()
 	for _, trip := range trips {
 		tripFields := strings.Split(trip, ",")
 
 		startStationCode := tripFields[tripStartStationCodeIndex]
 		endStationCode := tripFields[tripEndStationCodeIndex]
 		year := tripFields[tripYearIdIndex]
-
 		startStationKey := getStationKey(startStationCode, year, city)
 		startStation, ok := stations[startStationKey]
 		if !ok {
@@ -134,7 +139,6 @@ func (j *StationsJoiner) joinStations(city string, trips []string, clientID stri
 		if !ok {
 			continue
 		}
-
 		joinedTrip := fmt.Sprintf("%s,%s,%s,%s,%s,%s,%s",
 			startStation.name,
 			startStation.latitude,
@@ -144,21 +148,25 @@ func (j *StationsJoiner) joinStations(city string, trips []string, clientID stri
 			endStation.longitude,
 			year,
 		)
-		joinedTrips = append(joinedTrips, joinedTrip)
+		joinedTrips[i] = joinedTrip
+		i++
 	}
-	return joinedTrips
+	if time.Since(timer) > 20*time.Millisecond {
+		fmt.Printf("[Client %s] Batch %v processed in %s:\n", clientID, id, time.Since(timer).String())
+	}
+	return joinedTrips[:i]
 }
 
 func (j *StationsJoiner) dropDataForYearFilter(trips []string) []string {
-	tripsToSend := make([]string, 0, len(trips))
-	for _, trip := range trips {
+	tripsToSend := make([]string, len(trips))
+	for i, trip := range trips {
 		fields := strings.Split(trip, ",")
 
 		startStationName := fields[0]
 		year := fields[6]
 
 		tripToSend := fmt.Sprintf("%s,%s", startStationName, year)
-		tripsToSend = append(tripsToSend, tripToSend)
+		tripsToSend[i] = tripToSend
 	}
 	return tripsToSend
 }

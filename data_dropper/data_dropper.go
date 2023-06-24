@@ -71,20 +71,52 @@ func (d *DataDropper) processTripsMessage(msg message.Message) {
 		return
 	}
 
-	sanitizedTrips := d.sanitize(msg)
+	if d.msgCount%5000 == 0 {
+		fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(d.startTime).String(), msg.ID)
+	}
 
-	weatherJoinerTrips := d.dropDataForWeatherJoiner(sanitizedTrips)
+	weatherJoinerTrips, stationsJoinerTrips := d.dropData(msg)
+
 	weatherJoinerMessage := message.NewTripsBatchMessage(msg.ID, msg.ClientID, msg.City, weatherJoinerTrips)
 	d.weatherJoinerProducer.PublishMessage(weatherJoinerMessage, "")
 
-	stationsJoinerTrips := d.dropDataForStationsJoiner(sanitizedTrips)
 	stationsJoinerMessage := message.NewTripsBatchMessage(msg.ID, msg.ClientID, msg.City, stationsJoinerTrips)
 	d.stationsJoinerProducer.PublishMessage(stationsJoinerMessage, "")
 
-	if d.msgCount%20000 == 0 {
-		fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(d.startTime).String(), msg.ID)
-	}
 	d.msgCount++
+}
+
+func (d *DataDropper) dropData(msg message.Message) ([]string, []string) {
+	timer := time.Now()
+	trips := msg.Batch
+	tripsToSendToWeatherJoiner := make([]string, len(trips))
+	tripsToSendToStationsJoiner := make([]string, len(trips))
+	fieldsToSendToWeatherJoiner := make([]string, len(columnsForWeatherJoiner))
+	fieldsToSendToStationsJoiner := make([]string, len(columnsForStationsJoiner))
+
+	for i := range trips {
+		fields := strings.Split(trips[i], ",")
+		duration, err := strconv.ParseFloat(fields[durationSecIndex], 64)
+		if err != nil || duration < 0 {
+			fields[durationSecIndex] = "0"
+		}
+		day := strings.Split(fields[startDateIndex], " ")[0]
+		fields[startDateIndex] = day
+
+		for i, col := range columnsForWeatherJoiner {
+			fieldsToSendToWeatherJoiner[i] = fields[col]
+		}
+		tripsToSendToWeatherJoiner[i] = strings.Join(fieldsToSendToWeatherJoiner, ",")
+
+		for i, col := range columnsForStationsJoiner {
+			fieldsToSendToStationsJoiner[i] = fields[col]
+		}
+		tripsToSendToStationsJoiner[i] = strings.Join(fieldsToSendToStationsJoiner, ",")
+	}
+	if time.Since(timer) > 20*time.Millisecond {
+		fmt.Printf("[Client %s] Batch %v processed in %s:\n", msg.ClientID, msg.ID, time.Since(timer).String())
+	}
+	return tripsToSendToWeatherJoiner, tripsToSendToStationsJoiner
 }
 
 func (d *DataDropper) sanitize(msg message.Message) []string {

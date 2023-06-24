@@ -98,8 +98,8 @@ func NewConsumer(configID string, routingKey string) (*Consumer, error) {
 		false,     // delete when unused
 		false,     // exclusive
 		false,     // no-wait
-		amqp.Table{ // queue args
-			amqp.QueueMaxLenBytesArg: int64(5_000_000_000), // 5 Gb
+		amqp.Table{
+			amqp.QueueMaxLenBytesArg: int64(5_000_000_000),
 			amqp.QueueMaxLenArg:      100000,
 		}, // arguments
 	)

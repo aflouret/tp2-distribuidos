@@ -79,6 +79,7 @@ func (j *WeatherJoiner) processWeatherMessage(msg message.Message) {
 }
 
 func (j *WeatherJoiner) processTripsMessage(msg message.Message) {
+	timer := time.Now()
 	if msg.IsEOF() {
 		j.producer.PublishMessage(msg, "")
 		delete(j.precipitationsByDateByCity, msg.ClientID)
@@ -93,7 +94,9 @@ func (j *WeatherJoiner) processTripsMessage(msg message.Message) {
 			fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(j.startTime).String(), msg.ID)
 		}
 	}
-
+	if time.Since(timer) > 20*time.Millisecond {
+		fmt.Printf("[Client %s] Batch %v processed in %s:\n", msg.ClientID, msg.ID, time.Since(timer).String())
+	}
 	j.msgCount++
 }
 
