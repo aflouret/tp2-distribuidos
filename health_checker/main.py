@@ -1,5 +1,6 @@
 from leader_election.leader_group import LeaderGroup, Worker
 from health_checker import HealthChecker
+from replier import CheckerReplier
 import logging
 import os
 
@@ -24,9 +25,10 @@ class CheckerWorker(Worker):
         self.checker = HealthChecker(targets)
 
     def run(self):
-        logging.info(f"Executed by: {HOSTNAME}")
         self.checker.run()
-        logging.info(f"Leader finished")
+
+    def stop(self):
+        self.checker.stop()
 
 
 def main():
@@ -34,6 +36,10 @@ def main():
     logging.info(f"Instance hostname: {HOSTNAME}")
     logging.info(f"Peers: {peers}")
     logging.info(f"Targets: {targets}")
+
+    # Start replier
+    replier = CheckerReplier()
+    replier.run()
 
     checker = CheckerWorker()
     group = LeaderGroup(checker, 0, len(PEERS), HOSTNAME, peers)

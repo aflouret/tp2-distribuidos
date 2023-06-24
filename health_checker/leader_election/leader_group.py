@@ -14,7 +14,7 @@ TIMEOUT_COORDINATION = 10
 RETRIES = 3
 
 MSG_SIZE = 128
-PORT = 12345
+PORT = 12300
 
 # Leader election messages
 PING = 'PING'
@@ -22,6 +22,7 @@ ELECTION_MSG = 'ELECTION'
 IMALIVE_MSG = 'IMALIVE'
 COORDINATOR_MSG = 'COORDINATOR'
 OK_CORDINATOR_MSG = 'OK'
+IGNORING='IGNORING'
 
 mutex = threading.Lock()
 
@@ -29,6 +30,9 @@ mutex = threading.Lock()
 class Worker:
 
     def run(self):
+        pass
+
+    def stop(self):
         pass
 
 
@@ -46,7 +50,7 @@ class LeaderGroup:
         self.running = True
         self.leader = -1
         self.iddle_stage = Timer()
-        self.id_msg = 0
+        self.id_msg = 0qq
 
         for name in hosts:
             self.group[name] = {"addr": name, "last_msg_id": 0, "alive": False, "coordinated": False}
@@ -69,20 +73,29 @@ class LeaderGroup:
 
             log.info(f"Bully Election | Leader chosen: {self.leader}")
             if self.leader == self.id:
-                pinging = threading.Thread(target=self.pinging, daemon=False)
-                pinging.start()
-                self.worker.run()
-                self.shutdown()
+                self.spawn_worker()
 
-    def pinging(self):
+    def spawn_worker(self):
+
+        log.info(f"Bully Election | Start Working.")
+
+        # Spawn worker and stay pinging to other nodes of the group
+        w = threading.Thread(target=self.worker.run, daemon=False)
+        w.start()
 
         timer = Timer()
-        while self.running:
+
+        while self.running and self.leader == self.id:
             for idx, data in self.group.items():
                 if idx == self.id: continue
                 log.debug(f"Bully Election | Ping to: {idx}")
                 self.send(data["addr"], PING)
             timer.start(PING_INTERVAL)
+
+        self.worker.stop()
+        w.join()
+
+        log.info(f"Bully Election | Stop working.")
 
     def start_election(self):
 
@@ -151,40 +164,69 @@ class LeaderGroup:
 
         while self.running:
 
-            addr, (node_id, msg_id, msg) = self.receive()
+            addr, msg = self.receive()
+
+            node_id = msg[0]
+            msg_id = msg[1]
+            msd_code = msg[2]
+            param = msg[3]
 
             # Filter and sequence control
-            if node_id not in self.group or self.group[node_id]["last_msg_id"] > int(msg_id):
+            last_msg = self.group[node_id]["last_msg_id"]
+            if node_id not in self.group or last_msg > int(msg_id):
+                self.send(addr[0], IGNORING, last_msg)
                 continue
 
             self.group[node_id]["last_msg_id"] = int(msg_id)
 
             # Handle messages
-            if msg == ELECTION_MSG:
+            if msd_code == ELECTION_MSG:
                 log.debug(f"Bully Election | New election detected.. {node_id}")
                 self.send(addr[0], IMALIVE_MSG)
 
-            if msg == IMALIVE_MSG:
+            if msd_code == IMALIVE_MSG:
                 self.group[node_id]["alive"] = True
 
-            if msg == COORDINATOR_MSG:
+            if msd_code == COORDINATOR_MSG:
                 log.info(f"Bully Election | New lider detected.. {node_id}")
                 self.send(addr[0], OK_CORDINATOR_MSG)
                 self.leader = node_id
 
-            if msg == OK_CORDINATOR_MSG:
+            if msd_code == OK_CORDINATOR_MSG:
                 self.group[node_id]["coordinated"] = True
 
-            if msg == PING:
+            if msd_code == PING:
+
+                # Si soy el lider y me mandan un ping, se rompe la invarianza de unico lider.
+                if self.leader == self.id:
+
+                    log.info(f"Bully Election | Detected other leader alive: {node_id}.")
+
+                    # Sobrevive el lider de mayor ID
+                    if self.id < node_id:
+                        log.info(f"Abandoning..")
+                        self.leader = node_id
+
+                    else:
+                        log.info(f"Ignoring..")
+                        continue
+
                 log.debug(f"Bully Election | Ping received! resetting timer...")
                 self.iddle_stage.reset()
 
-    def send(self, addr, msg):
+            if msd_code == IGNORING:
+
+                # Permite recuperar su id_msg ante una caida.
+                if int(param) > self.id_msg:
+                    with mutex:
+                        self.id_msg = int(param)
+
+    def send(self, addr, msg, param=""):
 
         log.debug(f"Bully Election | Sending message to {addr} >> {msg}")
 
         with mutex:
-            msg = self.id + "." + str(self.id_msg) + "." + msg
+            msg = self.id + "." + str(self.id_msg) + "." + msg + "." + str(param)
             msg = msg.ljust(MSG_SIZE).encode()
 
             try:

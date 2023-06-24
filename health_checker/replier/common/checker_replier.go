@@ -101,7 +101,7 @@ func (hcr *HealhCheckerReplier) replier(conn net.Conn) (bool, error) {
 			return false, errors.New(fmt.Sprintf("Unexpected opcode response: %v", packet.opcode))
 		}
 
-		fmt.Printf("Received Ping!")
+		// fmt.Printf("Received Pign\n")
 
 		// Send pong
 		err = Send(conn, NewPacket(OP_CODE_PONG, ""))
@@ -109,7 +109,7 @@ func (hcr *HealhCheckerReplier) replier(conn net.Conn) (bool, error) {
 			return false, err
 		}
 
-		fmt.Printf("Replied Pong!")
+		// fmt.Printf("Replied Pong!\n")
 
 	}
 

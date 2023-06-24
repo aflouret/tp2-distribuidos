@@ -1,5 +1,7 @@
+import concurrent
 import socket
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from time import sleep
 from messaging_protocol import send, receive, Packet
 import logging as log
@@ -13,7 +15,7 @@ CHECKING_INTERVAL = 10
 LUTO_TIME = 10
 CONNECTION_RETRIES = 3
 CONNETION_RETRY_BASE_TIME = 1
-SOCKET_TIMEOUT = 20
+SOCKET_TIMEOUT = 30
 
 OP_CODE_ERORR = -1
 OP_CODE_DISCONECTED = 0
@@ -56,6 +58,9 @@ class HealthChecker:
 
             sleep(CHECKING_INTERVAL)
 
+        if s:
+            s.close()
+
     def bring_to_live(self, name):
 
         container = client.containers.get(name)
@@ -66,7 +71,7 @@ class HealthChecker:
 
     def do_ping(self, s, hostname):
 
-        log.info(f"Pinging to {hostname}")
+        log.info(f"HealthChecker | Pinging to {hostname}")
 
         success = False
 
@@ -78,10 +83,10 @@ class HealthChecker:
             success = response == OP_CODE_PONG
 
             if not success:
-                log.error(f"Host {hostname} disconected. Reason: Unexpected opcode response ({response}).")
+                log.error(f"HealthChecker | Host {hostname} disconected. Reason: Unexpected opcode response ({response}).")
 
         except TARGET_ERRORS as e:
-            log.error(f"Host {hostname} disconected. Reason: {e} ")
+            log.error(f"HealthChecker | Host {hostname} disconected. Reason: {e} ")
 
         if not success:
             s.close()
@@ -93,7 +98,7 @@ class HealthChecker:
         s = None
 
         if hostname not in self.targets:
-            log.error(f"Unexpected host: {hostname}")
+            log.error(f"HealthChecker | Unexpected host: {hostname}")
             return s
 
         for i in range(CONNECTION_RETRIES):
@@ -101,17 +106,17 @@ class HealthChecker:
             connected = False
             try:
                 addr = (hostname, CHECKER_PORT)
-                log.debug(f"{addr} -> Trying connection.")
+                log.debug(f"HealthChecker | {addr} -> Trying connection.")
 
                 s = self.__new_sock()
                 s.settimeout(SOCKET_TIMEOUT)
                 s.connect(addr)
 
-                log.info(f"{addr} -> Connected!")
+                log.info(f"HealthChecker | {addr} -> Connected!")
                 connected = True
 
             except TARGET_ERRORS as e:
-                log.error(f"Connection error of host {hostname}: {e} ")
+                log.error(f"HealthChecker | Connection error of host {hostname}: {e} ")
                 s.close()
                 s = None
 
@@ -120,20 +125,13 @@ class HealthChecker:
 
             sleep(CONNETION_RETRY_BASE_TIME*(2**i))
 
-        log.error(f"Unable to connect to {hostname}")
+        log.error(f"HealthChecker | Unable to connect to {hostname}")
 
         return s
-
-    def kill(self, target):
-
-
-        log.info(f"[EVENT] - Killed {target}")
-
-    def revive(self, target):
-        client.containers.run(target, detach=True)
 
     def __new_sock(self):
         return socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-# Agregar timeout al socket
-# Handlear una desconección inicial
+    def stop(self):
+        self.running = False
+        log.info(f"HealthChecker | Stopping..")

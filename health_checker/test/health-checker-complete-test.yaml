@@ -9,10 +9,11 @@ services:
       - ../health_checker.py:/app/health_checker.py
       - ../messaging_protocol.py:/app/messaging_protocol.py
       - ../leader_election/:/app/leader_election/
+      - ../replier/replier.py:/app/replier.py
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - PEERS=checker-1,checker-2,checker-3
-      - TARGETS=target-1,target-2,target-3
+      - TARGETS=target-1,target-2,target-3,checker-1,checker-2,checker-3
       - HOSTNAME=checker-1
 
   checker-2:
@@ -24,10 +25,11 @@ services:
       - ../health_checker.py:/app/health_checker.py
       - ../messaging_protocol.py:/app/messaging_protocol.py
       - ../leader_election/:/app/leader_election/
+      - ../replier/replier.py:/app/replier.py
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - PEERS=checker-1,checker-2,checker-3
-      - TARGETS=target-1,target-2,target-3
+      - TARGETS=target-1,target-2,target-3,checker-1,checker-2,checker-3
       - HOSTNAME=checker-2
 
   checker-3:
@@ -39,10 +41,11 @@ services:
       - ../health_checker.py:/app/health_checker.py
       - ../messaging_protocol.py:/app/messaging_protocol.py
       - ../leader_election/:/app/leader_election/
+      - ../replier/replier.py:/app/replier.py
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - PEERS=checker-1,checker-2,checker-3
-      - TARGETS=target-1,target-2,target-3
+      - TARGETS=target-1,target-2,target-3,checker-1,checker-2,checker-3
       - HOSTNAME=checker-3
 
   target-1:
