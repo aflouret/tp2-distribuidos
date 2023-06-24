@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"tp1/common/message"
@@ -12,8 +14,10 @@ const (
 	yearIndex = iota
 	startStationNameIndex
 )
+const batchSize = 500
 
 type TripCounter struct {
+	instanceID          string
 	producer            *middleware.Producer
 	consumer            *middleware.Consumer
 	year1               string
@@ -24,10 +28,11 @@ type TripCounter struct {
 	startTime           time.Time
 }
 
-func NewTripCounter(year1 string, year2 string, consumer *middleware.Consumer, producer *middleware.Producer) *TripCounter {
+func NewTripCounter(instanceID string, year1 string, year2 string, consumer *middleware.Consumer, producer *middleware.Producer) *TripCounter {
 	countByStationYear1 := make(map[string]map[string]int)
 	countByStationYear2 := make(map[string]map[string]int)
 	return &TripCounter{
+		instanceID:          instanceID,
 		producer:            producer,
 		consumer:            consumer,
 		countByStationYear1: countByStationYear1,
@@ -95,16 +100,46 @@ func (a *TripCounter) updateCount(msg message.Message) {
 }
 
 func (a *TripCounter) sendResults(clientID string) {
-	for k, v := range a.countByStationYear1[clientID] {
-		result := fmt.Sprintf("%s,%s,%v", a.year1, k, v)
-		msg := message.NewTripsBatchMessage("", clientID, "", []string{result})
-		a.producer.PublishMessage(msg, "")
+	sortedStationsYear1 := make([]string, 0, len(a.countByStationYear1[clientID]))
+	for k := range a.countByStationYear1[clientID] {
+		sortedStationsYear1 = append(sortedStationsYear1, k)
 	}
-	for k, v := range a.countByStationYear2[clientID] {
-		result := fmt.Sprintf("%s,%s,%v", a.year2, k, v)
-		msg := message.NewTripsBatchMessage("", clientID, "", []string{result})
-		a.producer.PublishMessage(msg, "")
+	sort.Strings(sortedStationsYear1)
+
+	sortedStationsYear2 := make([]string, 0, len(a.countByStationYear2[clientID]))
+	for k := range a.countByStationYear2[clientID] {
+		sortedStationsYear2 = append(sortedStationsYear2, k)
 	}
+	sort.Strings(sortedStationsYear2)
+
+	batch := make([]string, 0, batchSize)
+	batchNumber := 1
+	for i, s := range sortedStationsYear1 {
+		index := i + 1
+		count := a.countByStationYear1[clientID][s]
+		result := fmt.Sprintf("%s,%s,%v", a.year1, s, count)
+		batch = append(batch, result)
+		if index%batchSize == 0 || index == len(sortedStationsYear1) {
+			msg := message.NewTripsBatchMessage(clientID+"."+a.instanceID+"."+strconv.Itoa(batchNumber), clientID, "", batch)
+			a.producer.PublishMessage(msg, "")
+			batch = make([]string, 0, batchSize)
+			batchNumber++
+		}
+	}
+
+	for i, s := range sortedStationsYear2 {
+		index := i + 1
+		count := a.countByStationYear2[clientID][s]
+		result := fmt.Sprintf("%s,%s,%v", a.year2, s, count)
+		batch = append(batch, result)
+		if index%batchSize == 0 || index == len(sortedStationsYear2) {
+			msg := message.NewTripsBatchMessage(clientID+"."+a.instanceID+"."+strconv.Itoa(batchNumber), clientID, "", batch)
+			a.producer.PublishMessage(msg, "")
+			batch = make([]string, 0, batchSize)
+			batchNumber++
+		}
+	}
+
 	eof := message.NewTripsEOFMessage("1", clientID)
 	a.producer.PublishMessage(eof, "")
 }

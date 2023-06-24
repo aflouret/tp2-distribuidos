@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ const (
 	endStationNameIndex = iota
 	distanceIndex
 )
+const batchSize = 500
 
 type average struct {
 	avg   float64
@@ -20,6 +22,7 @@ type average struct {
 }
 
 type DistanceAverager struct {
+	instanceID            string
 	producer              *middleware.Producer
 	consumer              *middleware.Consumer
 	avgDistancesByStation map[string]map[string]average
@@ -27,10 +30,11 @@ type DistanceAverager struct {
 	startTime             time.Time
 }
 
-func NewDistanceAverager(consumer *middleware.Consumer, producer *middleware.Producer) *DistanceAverager {
+func NewDistanceAverager(instanceID string, consumer *middleware.Consumer, producer *middleware.Producer) *DistanceAverager {
 	avgDistancesByStation := make(map[string]map[string]average)
 
 	return &DistanceAverager{
+		instanceID:            instanceID,
 		producer:              producer,
 		consumer:              consumer,
 		avgDistancesByStation: avgDistancesByStation,
@@ -88,10 +92,25 @@ func (a *DistanceAverager) updateAverage(msg message.Message) {
 }
 
 func (a *DistanceAverager) sendResults(clientID string) {
-	for k, v := range a.avgDistancesByStation[clientID] {
-		result := fmt.Sprintf("%s,%v,%v", k, v.avg, v.count)
-		msg := message.NewTripsBatchMessage("", clientID, "", []string{result})
-		a.producer.PublishMessage(msg, "")
+	sortedStations := make([]string, 0, len(a.avgDistancesByStation[clientID]))
+	for k := range a.avgDistancesByStation[clientID] {
+		sortedStations = append(sortedStations, k)
+	}
+	sort.Strings(sortedStations)
+
+	batch := make([]string, 0, batchSize)
+	batchNumber := 1
+	for i, s := range sortedStations {
+		index := i + 1
+		value := a.avgDistancesByStation[clientID][s]
+		result := fmt.Sprintf("%s,%v,%v", s, value.avg, value.count)
+		batch = append(batch, result)
+		if index%batchSize == 0 || index == len(sortedStations) {
+			msg := message.NewTripsBatchMessage(clientID+"."+a.instanceID+"."+strconv.Itoa(batchNumber), clientID, "", batch)
+			a.producer.PublishMessage(msg, "")
+			batch = make([]string, 0, batchSize)
+			batchNumber++
+		}
 	}
 	eof := message.NewTripsEOFMessage("1", clientID)
 	a.producer.PublishMessage(eof, "")

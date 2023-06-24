@@ -56,30 +56,32 @@ func (m *DistanceMerger) processMessage(msg message.Message) {
 }
 
 func (m *DistanceMerger) mergeResults(msg message.Message) error {
-	result := msg.Batch[0]
-	fields := strings.Split(result, ",")
-	endStationName := fields[endStationNameIndex]
-	avg, err := strconv.ParseFloat(fields[averageIndex], 64)
-	if err != nil {
-		return err
-	}
-	count, err := strconv.Atoi(fields[countIndex])
-	if err != nil {
-		return err
-	}
-
 	avgDistancesByStation, ok := m.avgDistancesByStation[msg.ClientID]
 	if !ok {
 		avgDistancesByStation = make(map[string]average)
 	}
 
-	if d, ok := avgDistancesByStation[endStationName]; ok {
-		newAvg := (d.avg*float64(d.count) + avg*float64(count)) / float64(d.count+count)
-		d.avg = newAvg
-		d.count += count
-		avgDistancesByStation[endStationName] = d
-	} else {
-		avgDistancesByStation[endStationName] = average{avg: avg, count: count}
+	results := msg.Batch
+	for _, result := range results {
+		fields := strings.Split(result, ",")
+		endStationName := fields[endStationNameIndex]
+		avg, err := strconv.ParseFloat(fields[averageIndex], 64)
+		if err != nil {
+			return err
+		}
+		count, err := strconv.Atoi(fields[countIndex])
+		if err != nil {
+			return err
+		}
+
+		if d, ok := avgDistancesByStation[endStationName]; ok {
+			newAvg := (d.avg*float64(d.count) + avg*float64(count)) / float64(d.count+count)
+			d.avg = newAvg
+			d.count += count
+			avgDistancesByStation[endStationName] = d
+		} else {
+			avgDistancesByStation[endStationName] = average{avg: avg, count: count}
+		}
 	}
 
 	m.avgDistancesByStation[msg.ClientID] = avgDistancesByStation

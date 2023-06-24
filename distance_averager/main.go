@@ -2,10 +2,13 @@ package main
 
 import (
 	"log"
+	"os"
 	"tp1/common/middleware"
 )
 
 func main() {
+	instanceID := os.Getenv("ID")
+
 	consumer, err := middleware.NewConsumer("consumer", "")
 	if err != nil {
 		log.Fatal(err)
@@ -14,6 +17,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	distanceAverager := NewDistanceAverager(consumer, producer)
+	distanceAverager := NewDistanceAverager(instanceID, consumer, producer)
 	distanceAverager.Run()
 }

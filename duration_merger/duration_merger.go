@@ -54,32 +54,33 @@ func (m *DurationMerger) processMessage(msg message.Message) {
 }
 
 func (m *DurationMerger) mergeResults(msg message.Message) error {
-	result := msg.Batch[0]
-	fields := strings.Split(result, ",")
-	startDate := fields[startDateIndex]
-	avg, err := strconv.ParseFloat(fields[averageIndex], 64)
-	if err != nil {
-		return err
-	}
-	count, err := strconv.Atoi(fields[countIndex])
-	if err != nil {
-		return err
-	}
-
 	avgDurationsByDate, ok := m.avgDurationsByDate[msg.ClientID]
 	if !ok {
 		avgDurationsByDate = make(map[string]average)
 	}
 
-	if d, ok := avgDurationsByDate[startDate]; ok {
-		newAvg := (d.avg*float64(d.count) + avg*float64(count)) / float64(d.count+count)
-		d.avg = newAvg
-		d.count += count
-		avgDurationsByDate[startDate] = d
-	} else {
-		avgDurationsByDate[startDate] = average{avg: avg, count: count}
-	}
+	results := msg.Batch
+	for _, result := range results {
+		fields := strings.Split(result, ",")
+		startDate := fields[startDateIndex]
+		avg, err := strconv.ParseFloat(fields[averageIndex], 64)
+		if err != nil {
+			return err
+		}
+		count, err := strconv.Atoi(fields[countIndex])
+		if err != nil {
+			return err
+		}
 
+		if d, ok := avgDurationsByDate[startDate]; ok {
+			newAvg := (d.avg*float64(d.count) + avg*float64(count)) / float64(d.count+count)
+			d.avg = newAvg
+			d.count += count
+			avgDurationsByDate[startDate] = d
+		} else {
+			avgDurationsByDate[startDate] = average{avg: avg, count: count}
+		}
+	}
 	m.avgDurationsByDate[msg.ClientID] = avgDurationsByDate
 	return nil
 }

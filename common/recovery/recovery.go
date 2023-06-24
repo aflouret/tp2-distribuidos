@@ -2,7 +2,6 @@ package recovery
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"strings"
 	"tp1/common/message"
@@ -87,7 +86,6 @@ func recoverFile(name string, f *os.File, callback func(msg message.Message)) {
 	for {
 		if scanner.Scan() {
 			line := scanner.Text()
-			fmt.Println("RECOVERING " + line)
 			tag := strings.Split(line, " ")[0]
 			switch tag {
 			case beginTag:
