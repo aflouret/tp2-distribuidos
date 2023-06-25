@@ -49,6 +49,9 @@ for i in range(0, client_instances):
       - type: bind
         source: ./client/config.yaml
         target: /config.yaml
+      - type: bind
+        source: ./data/recovery_data/client_{i}
+        target: /recovery_files
 '''
 
 

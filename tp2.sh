@@ -61,6 +61,29 @@ RunTp(){
 
 }
 
+DiffTp(){
+    if [ "$1" == "medium" ]; then
+        diff -u -w --color correct_results/results_medium_1.txt data/recovery_data/client_0/result_1
+        diff -u -w --color correct_results/results_medium_2.txt data/recovery_data/client_0/result_2
+        diff -u -w --color correct_results/results_medium_3.txt data/recovery_data/client_0/result_3
+    elif [ "$1" == "large" ]; then
+        diff -u -w --color correct_results/results_large_1.txt data/recovery_data/client_0/result_1
+        diff -u -w --color correct_results/results_large_2.txt data/recovery_data/client_0/result_2
+        diff -u -w --color correct_results/results_large_3.txt data/recovery_data/client_0/result_3
+    else
+        diff -u -w --color correct_results/results_full_1.txt data/recovery_data/client_0/result_1
+        diff -u -w --color correct_results/results_full_2.txt data/recovery_data/client_0/result_2
+        diff -u -w --color correct_results/results_full_3.txt data/recovery_data/client_0/result_3
+    fi
+
+    for (( i=1 ; i<$2 ; i++ ))
+    do
+        diff -u -w --color "data/recovery_data/client_$i/result_1" data/recovery_data/client_0/result_1
+        diff -u -w --color "data/recovery_data/client_$i/result_2" data/recovery_data/client_0/result_2
+        diff -u -w --color "data/recovery_data/client_$i/result_3" data/recovery_data/client_0/result_3
+    done
+}
+
 myfun(){
     echo $1 $2 $3 $4
 }
@@ -76,6 +99,10 @@ elif [ "$1" == "run" ]; then
 elif [ "$1" == "stop" ]; then
     shift
     StopTp $@
+
+elif [ "$1" == "diff" ]; then
+    shift
+    DiffTp $@
 
 elif [ "$1" == "help" ]; then
 

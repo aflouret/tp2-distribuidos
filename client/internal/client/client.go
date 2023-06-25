@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 	"tp1/client/internal/utils"
@@ -238,6 +239,8 @@ func (c *Client) getResults() error {
 		return err
 	}
 	fmt.Println(result3)
+
+	logResults([]string{result1, result2, result3})
 	return nil
 }
 
@@ -283,4 +286,32 @@ func (c *Client) getResult() (string, error) {
 
 func (c *Client) sendDataMessage(payload string) error {
 	return utils.SendDataMessage(c.conn, payload)
+}
+
+func logResults(results []string) {
+	for _, r := range results {
+		lines := strings.Split(r, "\n")
+		header := strings.TrimSpace(lines[0])
+		fmt.Println("header", header)
+		switch header {
+		case "Average duration of trips during >30mm precipitation days:":
+			f, err := os.OpenFile("recovery_files/result_1.txt", os.O_CREATE|os.O_WRONLY, 0666)
+			fmt.Println(err)
+			res := strings.Join(lines[2:], "\n")
+			f.Write([]byte(res))
+			f.Close()
+		case "Stations that doubled the number of trips between 2016 and 2017:":
+			f, err := os.OpenFile("recovery_files/result_2", os.O_CREATE|os.O_WRONLY, 0666)
+			fmt.Println(err)
+			res := strings.Join(lines[2:], "\n")
+			f.Write([]byte(res))
+			f.Close()
+		case "Stations with more than 6 km average to arrive at them:":
+			f, err := os.OpenFile("recovery_files/result_3", os.O_CREATE|os.O_WRONLY, 0666)
+			fmt.Println(err)
+			res := strings.Join(lines[2:], "\n")
+			f.Write([]byte(res))
+			f.Close()
+		}
+	}
 }

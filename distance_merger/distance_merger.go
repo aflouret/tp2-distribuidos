@@ -101,7 +101,7 @@ func (m *DistanceMerger) sendResults(clientID string) {
 	for _, s := range sortedStations {
 		avg := m.avgDistancesByStation[clientID][s].avg
 		if avg > m.minimumDistance {
-			result += fmt.Sprintf("%s,%v\n", s, avg)
+			result += fmt.Sprintf("%s,%.6f\n", s, avg)
 		}
 	}
 	msg := message.NewResultsBatchMessage("distance_merger", clientID, []string{result})

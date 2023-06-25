@@ -1,0 +1,212 @@
+12th St & Pennsylvania Ave SE,1228,10
+14th & Irving St NW,5593,2069
+16th & Q St SE / Anacostia HS,179,39
+17th St & Independence Ave SW,7521,3428
+1st & D St SE,3433,811
+22nd St & Constitution Ave NW,2072,303
+24th & R St NE / National Arboretum,702,191
+25 York St (ACC/Union Station South),1861,816
+3rd St & Riggs Rd NE,143,2
+4th St & Madison Dr NW,9432,4566
+51 Parliament St,1237,582
+61st St & Banks Pl NE,20,5
+6th & K St NE,1895,9
+80 Clinton St (North of College),864,288
+Alabama & MLK Ave SE,138,60
+Augusta Ave / Denison Sq,2114,939
+Augusta Ave / Dundas St W,2175,1011
+Bathurst St / Dundas St W,2450,1052
+Bathurst St / Fort York Blvd,2603,1056
+Bathurst St / Lennox St,998,478
+Bathurst St / Queens Quay W,2089,160
+Bathurst Subway Station,975,343
+Bay St / Albert St,3729,1813
+Bay St / College St (East Side),4341,2073
+Bay St / Davenport Rd,675,290
+Bay St / St. Joseph St,3099,1396
+Bay St / Wellesley St W,4530,2098
+Benning Branch Library,126,53
+Benning Rd & East Capitol St NE / Benning Rd Metro,164,78
+Beverly  St / Dundas St W,3439,1493
+Bloor St / Brunswick Ave,2292,993
+Bloor St W / Christie St,1499,563
+Bloor St W / Dundas St W,551,204
+Bond St / Queen St E,2259,1040
+Boston Ave / Queen St E,1099,433
+Boyer / du Mont-Royal,6013,2868
+Bremner Blvd / Rees St,2728,1061
+Bridgeman Ave / Bathurst St,389,104
+Bridgeman Ave / Kendal Ave,423,195
+Broschart & Blackwell Rd,8,3
+Cariboo St / Rail Path,529,114
+Carlin Springs Rd & N Thomas St,419,4
+Carlton St / Parliament St,1266,501
+Castle Frank Station,390,144
+Central Tech  (Harbord St),924,268
+Cherry St / Distillery Ln,1014,360
+Cherry St / Mill St,1309,574
+Chester Station,558,192
+Christie St / Benson Ave (Wychwood Barns),829,249
+Church St / Bloor St E,2119,1041
+Claremont St / Dundas St W,859,371
+College Park South,3786,1690
+Columbia Pike & S Dinwiddie St / Arlington Mill Community Center,419,205
+Commonwealth & E Monroe Ave,333,145
+Danforth Ave / Aldridge Ave,217,94
+Danforth Ave / Barrington Ave,172,55
+Danforth Ave / Ellerbeck St,904,261
+Danforth Ave / Gough Ave,648,187
+Danforth Ave / Lamb Ave,264,131
+Danforth Ave / Westlake Ave,109,35
+Davenport Rd / Avenue Rd,505,176
+Davenport Rd / Bathurst St,335,100
+Davenport Rd / Christie St,475,141
+Dockside Dr / Queens Quay E (Sugar Beach),3006,1266
+Donlands Station,347,135
+Dufferin St / Bloor St,528,180
+Dufferin St / Sylvan Av (Dufferin Grove Park),581,176
+Dundas St E / Broadview Ave,962,364
+Dundas St E / Parliament St,1877,914
+Dundas St E / Regent Park Blvd,2499,1018
+Dundas St W / Crawford St,1640,579
+Dundas St W / Edna Ave,333,121
+East Falls Church Metro/Sycamore St & 19th St N,333,145
+East Liberty St / Pirandello St,2541,1107
+Edward St / Yonge St,2219,1040
+Elizabeth St / Edward St (Bus Terminal),2515,1149
+Essex St / Christie St,557,177
+Euclid Ave / Bloor St W,1484,725
+Exhibition GO (Atlantic Ave),796,273
+Fort York  Blvd / Capreol Crt,3190,1484
+Fort York Blvd / Garrison Rd,1232,434
+Franklin & S Washington St,619,259
+Front St E / Cherry St,1065,371
+Front St W / Blue Jays Way,4050,1572
+Gerrard St E / River St,667,246
+Glen Edyth Dr / Davenport Rd,715,251
+Gould St / Mutual St,3192,1555
+Greensboro & International Dr,43,4
+Hanna Ave / Liberty St,1038,381
+Harbord St / Clinton St,809,286
+Hayter St / Laplante Ave,1862,759
+Howard St / Sherbourne St,1673,688
+Huron/ Harbord St,1874,876
+Jardin Botanique (Pie-IX / Sherbrooke),2056,730
+Jarvis St / Dundas St E,1139,484
+Jarvis St / Isabella St,2397,1014
+Jimmie Simpson Park (Queen St E),906,291
+Jones Branch & Westbranch Dr,23,8
+Kennebec St & 11th St N,321,61
+King St E / Jarvis St,2848,1180
+King St E / River St,1915,650
+King St W / Bay St (East Side),2049,919
+King St W / Douro St,877,333
+King St W / Fraser Ave,338,104
+King St W / Joe Shuster Way,884,186
+King St W / Spadina Ave,4516,2173
+King St W / Stafford St,1625,612
+King St W / Tecumseth St,2139,1043
+Lansdowne Ave / Whytock Ave,161,58
+Lee Center,281,114
+Liberty St / Fraser Ave Green P,816,249
+Library St & Freedom Dr,110,9
+Lower Jarvis St / The Esplanade,1973,911
+Lower Sherbourne St / The Esplanade,1908,775
+Macpherson Ave / Spadina Rd,1012,342
+Madison & Fairfax St,814,44
+Marché Atwater,7322,2802
+Marlborough Ave / Yonge St,470,155
+Mary McCormick Rec Centre (Sheridan Ave),429,191
+McGill St / Church St,1757,588
+Mill St / Tannery Rd,681,268
+Monroe St & Monroe Pl,94,45
+Mount Vernon Ave & Bruce St,132,49
+Mount Vernon Ave & Four Mile Run Park,406,106
+N Lynn St & Fairfax Dr,1314,73
+Navy Wharf Ct. / Bremner Blvd.,1794,888
+Needwood Rd & Eagles Head Ct,106,22
+Nelson St / Duncan St,3209,336
+New Dominion Pkwy & Fountain Dr,62,10
+New Jersey Ave & L St NW,1109,335
+Niagara St / Richmond St W,2786,1380
+Ontario Place Blvd / Remembrance Dr,3641,696
+Ossington Ave / Bloor St W,1457,477
+Ossington Ave / College St W,295,93
+Ossington Ave / Harrison St,508,217
+Palmerston Ave / Vermont Ave,506,238
+Pape Subway Green P,234,80
+Parliament St / Aberdeen Ave,1270,402
+Parliament St / Bloor St E,440,152
+Parliament St / Gerrard St,1370,459
+Phoebe St / Spadina Ave,3696,1645
+Potomac & Swann Ave,932,297
+Powhatan St & Bashford Ln,360,150
+Queen St E / Berkely St,653,223
+Queen St E / George St (Moss Park),1162,356
+Queen St E / Sackville St,663,189
+Queen St W / Close Ave,967,354
+Queen St W / Cowan Ave,669,195
+Queen St W / Dovercourt Rd,1347,645
+Queen St W / Gladstone Ave,1420,417
+Queen St W / Ossington Ave,1503,676
+Queen St W / Portland St,4323,1885
+Queen St W / Shaw St,1369,571
+Queen St W / Spadina Ave,2622,1307
+Queen St W / York St (City Hall),2135,851
+Queens Quay / Yonge St,2468,353
+Queens Quay W / Dan Leckie Way,2440,975
+Queens Quay W / Lower Simcoe St,3425,1395
+Radford & Osage St,188,58
+Reston Regional Library,14,4
+Reston Station,577,50
+Reston Town Center Transit Station,344,23
+Reston YMCA,82,8
+Richmond St E / Jarvis St Green P,1801,742
+Riverdale Park North (Broadview Ave),615,290
+Riverdale Park South (Broadview Ave),744,284
+Roxton Rd / Harbord St,527,206
+Salem Ave / Bloor St W,812,263
+Scott St / The Esplanade,2371,1056
+Seaton St / Dundas St E,1069,476
+Sherbourne St / Carlton St (Allan Gardens),2214,1074
+Simcoe St / Queen St W,3809,1821
+Simcoe St / Wellington St W,5348,2270
+Sligo Ave & Carroll Ln,292,10
+Spadina Ave / Sussex Ave,1783,845
+Spadina Ave / Willcocks St,1198,407
+Spring Hill Metro,52,7
+St-Denis / de Maisonneuve,2220,1100
+St. George St / Hoskin Ave,2080,837
+Sterling Rd / Dundas St W,563,213
+Strachan Ave / Princes' Blvd,1306,391
+Sumach St / Carlton St. (Riverdale Farm),754,279
+Summerhill Station,778,342
+Sunset Hills & Old Reston Ave,194,25
+Taddle Creek Park,709,245
+Ted Rogers Way / Bloor St E,2247,1010
+Temporary Rd & Old Reston Ave,127,14
+Town Center Pkwy & Bowman Towne Dr,56,14
+Tysons Corner Station,232,3
+Tysons West Transit Center,32,4
+Ulster St / Bathurst St,749,296
+Union Station,5529,2343
+University Ave / College St,2372,1035
+University Ave / Elm St,1832,812
+University Ave / Gerrard St W,1867,845
+University Ave / King St W,2955,1411
+Vermont Ave & I St NW,2488,822
+Victoria St / Gould St (Ryerson University),2509,894
+Wellesley St / Queen's Park Cres,1794,826
+Wellington St W / Portland St,2810,882
+Wellington St W / Stafford St,659,178
+Westpark & Jones Branch Dr,167,12
+Westpark & Park Run Dr,63,12
+Westpark Dr & Leesburg Pike,37,1
+Willcocks St / St. George St,2450,1148
+Wisconsin Ave & Brandywine St NW,721,175
+Woodbine Subway Green P (Cedarvale Ave),105,41
+Yarmouth Rd / Christie St,721,229
+Yonge St / Aylmer Ave,478,185
+Yonge St / Wood St,1889,829
+Yonge St / Yorkville Ave,1621,599
+York St / Queens Quay W,4765,2183

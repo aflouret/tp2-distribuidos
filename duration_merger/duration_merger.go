@@ -97,7 +97,7 @@ func (m *DurationMerger) sendResults(clientID string) {
 
 	for _, date := range sortedDates {
 		avg := m.avgDurationsByDate[clientID][date].avg
-		result += fmt.Sprintf("%s,%v\n", date, avg)
+		result += fmt.Sprintf("%s,%.6f\n", date, avg)
 	}
 
 	msg := message.NewResultsBatchMessage("duration_merger", clientID, []string{result})
