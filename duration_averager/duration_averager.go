@@ -106,12 +106,12 @@ func (a *DurationAverager) sendResults(clientID string) {
 		result := fmt.Sprintf("%s,%v,%v", s, value.avg, value.count)
 		batch = append(batch, result)
 		if index%batchSize == 0 || index == len(sortedDates) {
-			msg := message.NewTripsBatchMessage(clientID+"."+a.instanceID+"."+strconv.Itoa(batchNumber), clientID, "", batch)
-			a.producer.PublishMessage(msg, "")
+			msg := message.NewTripsBatchMessage(a.instanceID+"."+strconv.Itoa(batchNumber), clientID, "", batch)
+			a.producer.PublishMessage(msg, "duration_merger")
 			batch = make([]string, 0, batchSize)
 			batchNumber++
 		}
 	}
-	eof := message.NewTripsEOFMessage("1", clientID)
+	eof := message.NewTripsEOFMessage(clientID)
 	a.producer.PublishMessage(eof, "")
 }

@@ -120,8 +120,8 @@ func (a *TripCounter) sendResults(clientID string) {
 		result := fmt.Sprintf("%s,%s,%v", a.year1, s, count)
 		batch = append(batch, result)
 		if index%batchSize == 0 || index == len(sortedStationsYear1) {
-			msg := message.NewTripsBatchMessage(clientID+"."+a.instanceID+"."+strconv.Itoa(batchNumber), clientID, "", batch)
-			a.producer.PublishMessage(msg, "")
+			msg := message.NewTripsBatchMessage(a.instanceID+"."+strconv.Itoa(batchNumber), clientID, "", batch)
+			a.producer.PublishMessage(msg, "count_merger")
 			batch = make([]string, 0, batchSize)
 			batchNumber++
 		}
@@ -133,13 +133,13 @@ func (a *TripCounter) sendResults(clientID string) {
 		result := fmt.Sprintf("%s,%s,%v", a.year2, s, count)
 		batch = append(batch, result)
 		if index%batchSize == 0 || index == len(sortedStationsYear2) {
-			msg := message.NewTripsBatchMessage(clientID+"."+a.instanceID+"."+strconv.Itoa(batchNumber), clientID, "", batch)
-			a.producer.PublishMessage(msg, "")
+			msg := message.NewTripsBatchMessage(a.instanceID+"."+strconv.Itoa(batchNumber), clientID, "", batch)
+			a.producer.PublishMessage(msg, "count_merger")
 			batch = make([]string, 0, batchSize)
 			batchNumber++
 		}
 	}
 
-	eof := message.NewTripsEOFMessage("1", clientID)
+	eof := message.NewTripsEOFMessage(clientID)
 	a.producer.PublishMessage(eof, "")
 }

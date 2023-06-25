@@ -41,26 +41,6 @@ func NewTripsBatchMessage(id string, clientID string, city string, trips []strin
 	}
 }
 
-func NewWeatherBatchMessage(id string, clientID string, city string, weather []string) Message {
-	return Message{
-		MsgType:  WeatherBatch,
-		ID:       id,
-		ClientID: clientID,
-		City:     city,
-		Batch:    weather,
-	}
-}
-
-func NewStationsBatchMessage(id string, clientID string, city string, stations []string) Message {
-	return Message{
-		MsgType:  StationsBatch,
-		ID:       id,
-		ClientID: clientID,
-		City:     city,
-		Batch:    stations,
-	}
-}
-
 func NewResultsBatchMessage(id string, clientID string, results []string) Message {
 	return Message{
 		MsgType:  ResultsBatch,
@@ -70,34 +50,30 @@ func NewResultsBatchMessage(id string, clientID string, results []string) Messag
 	}
 }
 
-func NewWeatherEOFMessage(id string, clientID string) Message {
+func NewWeatherEOFMessage(clientID string) Message {
 	return Message{
 		MsgType:  WeatherEOF,
-		ID:       id,
 		ClientID: clientID,
 	}
 }
 
-func NewStationsEOFMessage(id string, clientID string) Message {
+func NewStationsEOFMessage(clientID string) Message {
 	return Message{
 		MsgType:  StationsEOF,
-		ID:       id,
 		ClientID: clientID,
 	}
 }
 
-func NewTripsEOFMessage(id string, clientID string) Message {
+func NewTripsEOFMessage(clientID string) Message {
 	return Message{
 		MsgType:  TripsEOF,
-		ID:       id,
 		ClientID: clientID,
 	}
 }
 
-func NewResultsEOFMessage(id string, clientID string) Message {
+func NewResultsEOFMessage(clientID string) Message {
 	return Message{
 		MsgType:  ResultsEOF,
-		ID:       id,
 		ClientID: clientID,
 	}
 }

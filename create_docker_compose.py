@@ -328,6 +328,7 @@ file_content = f'''services:
   client_handler:
     container_name: client_handler
     environment:
+      - ID=client_handler
       - MERGER_INSTANCES={merger_instances}
       - DATA_DROPPER_INSTANCES={data_dropper_instances}
       - WEATHER_JOINER_INSTANCES={weather_joiner_instances}
@@ -351,6 +352,7 @@ file_content = f'''services:
   duration_merger:
     container_name: duration_merger
     environment:
+      - ID=duration_merger
       - PREV_STAGE_INSTANCES={duration_averager_instances}
       - NEXT_STAGE_INSTANCES={client_handler_instances}
       - RABBITMQ_CONNECTION_STRING={rabbitmq_connection_string}
@@ -371,6 +373,7 @@ file_content = f'''services:
   count_merger:
     container_name: count_merger
     environment:
+      - ID=count_merger
       - PREV_STAGE_INSTANCES={trip_counter_instances}
       - NEXT_STAGE_INSTANCES={client_handler_instances}
       - YEAR_1={year_1}
@@ -393,6 +396,7 @@ file_content = f'''services:
   distance_merger:
     container_name: distance_merger
     environment:
+      - ID=distance_merger
       - PREV_STAGE_INSTANCES={distance_averager_instances}
       - NEXT_STAGE_INSTANCES={client_handler_instances}
       - MIN_DISTANCE={minimum_distance}

@@ -166,16 +166,16 @@ func (h *ConnectionHandler) readBatchesAndSend(city string, endMessageType uint8
 }
 
 func (h *ConnectionHandler) handleEndStaticData() {
-	stationsEOF := message.NewStationsEOFMessage("1", h.id)
+	stationsEOF := message.NewStationsEOFMessage(h.id)
 	h.producer.PublishMessage(stationsEOF, "")
-	weatherEOF := message.NewWeatherEOFMessage("1", h.id)
+	weatherEOF := message.NewWeatherEOFMessage(h.id)
 	h.producer.PublishMessage(weatherEOF, "")
 	protocol.Send(h.conn, protocol.Message{Type: protocol.Ack, Payload: ""})
 }
 
 func (h *ConnectionHandler) handleResults() {
 	protocol.Send(h.conn, protocol.Message{Type: protocol.Ack, Payload: ""})
-	tripsEOF := message.NewTripsEOFMessage("1", h.id)
+	tripsEOF := message.NewTripsEOFMessage(h.id)
 	h.producer.PublishMessage(tripsEOF, "")
 	h.resultsConsumer.ConsumeAndFilterDuplicates(func(msg message.Message) {
 		if msg.IsEOF() {

@@ -100,8 +100,8 @@ func (m *DurationMerger) sendResults(clientID string) {
 		result += fmt.Sprintf("%s,%v\n", date, avg)
 	}
 
-	msg := message.NewResultsBatchMessage("1", clientID, []string{result})
+	msg := message.NewResultsBatchMessage("duration_merger", clientID, []string{result})
 	m.producer.PublishMessage(msg, msg.ClientID)
-	eof := message.NewResultsEOFMessage("1", clientID)
+	eof := message.NewResultsEOFMessage(clientID)
 	m.producer.PublishMessage(eof, msg.ClientID)
 }

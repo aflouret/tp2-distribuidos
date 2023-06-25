@@ -104,8 +104,8 @@ func (m *DistanceMerger) sendResults(clientID string) {
 			result += fmt.Sprintf("%s,%v\n", s, avg)
 		}
 	}
-	msg := message.NewResultsBatchMessage("3", clientID, []string{result})
+	msg := message.NewResultsBatchMessage("distance_merger", clientID, []string{result})
 	m.producer.PublishMessage(msg, msg.ClientID)
-	eof := message.NewResultsEOFMessage("3", clientID)
+	eof := message.NewResultsEOFMessage(clientID)
 	m.producer.PublishMessage(eof, msg.ClientID)
 }

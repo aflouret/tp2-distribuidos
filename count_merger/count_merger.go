@@ -115,8 +115,8 @@ func (m *CountMerger) sendResults(clientID string) {
 		}
 	}
 
-	msg := message.NewResultsBatchMessage("2", clientID, []string{result})
+	msg := message.NewResultsBatchMessage("count_merger", clientID, []string{result})
 	m.producer.PublishMessage(msg, msg.ClientID)
-	eof := message.NewResultsEOFMessage("2", clientID)
+	eof := message.NewResultsEOFMessage(clientID)
 	m.producer.PublishMessage(eof, msg.ClientID)
 }

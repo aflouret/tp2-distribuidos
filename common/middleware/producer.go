@@ -21,6 +21,7 @@ type ProducerConfig struct {
 	exchangeName       string
 	nextStageInstances int
 	routeByID          bool
+	instanceID         string
 }
 
 func newProducerConfig(configID string) (ProducerConfig, error) {
@@ -37,12 +38,13 @@ func newProducerConfig(configID string) (ProducerConfig, error) {
 		nextStageInstances = 1
 	}
 	connectionString := os.Getenv("RABBITMQ_CONNECTION_STRING")
-
+	instanceID := os.Getenv("ID")
 	return ProducerConfig{
 		connectionString:   connectionString,
 		exchangeName:       exchangeName,
 		nextStageInstances: nextStageInstances,
 		routeByID:          routeByID,
+		instanceID:         instanceID,
 	}, nil
 }
 
@@ -84,6 +86,9 @@ func (p *Producer) PublishMessage(msg message.Message, routingKey string) {
 			consumerID := msgID % p.config.nextStageInstances
 			routingKey = fmt.Sprintf("%v", consumerID)
 		}
+	}
+	if msg.IsEOF() {
+		msg.ID = p.config.instanceID
 	}
 
 	//fmt.Printf("Routing key: %s, message: %s\n", routingKey, msg)
