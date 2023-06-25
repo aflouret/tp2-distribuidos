@@ -177,7 +177,7 @@ func (h *ConnectionHandler) handleResults() {
 	protocol.Send(h.conn, protocol.Message{Type: protocol.Ack, Payload: ""})
 	tripsEOF := message.NewTripsEOFMessage(h.id)
 	h.producer.PublishMessage(tripsEOF, "")
-	h.resultsConsumer.ConsumeAndFilterDuplicates(func(msg message.Message) {
+	h.resultsConsumer.Consume(func(msg message.Message) {
 		if msg.IsEOF() {
 			return
 		}

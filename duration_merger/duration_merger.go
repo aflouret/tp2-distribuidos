@@ -40,7 +40,7 @@ func (m *DurationMerger) Run() {
 	defer m.consumer.Close()
 	defer m.producer.Close()
 
-	m.consumer.ConsumeAndFilterDuplicates(m.processMessage)
+	m.consumer.Consume(m.processMessage)
 }
 
 func (m *DurationMerger) processMessage(msg message.Message) {

@@ -87,7 +87,6 @@ func (d *DataDropper) processTripsMessage(msg message.Message) {
 }
 
 func (d *DataDropper) dropData(msg message.Message) ([]string, []string) {
-	timer := time.Now()
 	trips := msg.Batch
 	tripsToSendToWeatherJoiner := make([]string, len(trips))
 	tripsToSendToStationsJoiner := make([]string, len(trips))
@@ -112,9 +111,6 @@ func (d *DataDropper) dropData(msg message.Message) ([]string, []string) {
 			fieldsToSendToStationsJoiner[i] = fields[col]
 		}
 		tripsToSendToStationsJoiner[i] = strings.Join(fieldsToSendToStationsJoiner, ",")
-	}
-	if time.Since(timer) > 20*time.Millisecond {
-		fmt.Printf("[Client %s] Batch %v processed in %s:\n", msg.ClientID, msg.ID, time.Since(timer).String())
 	}
 	return tripsToSendToWeatherJoiner, tripsToSendToStationsJoiner
 }

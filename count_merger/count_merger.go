@@ -41,7 +41,7 @@ func (m *CountMerger) Run() {
 	defer m.consumer.Close()
 	defer m.producer.Close()
 
-	m.consumer.ConsumeAndFilterDuplicates(m.processMessage)
+	m.consumer.Consume(m.processMessage)
 }
 
 func (m *CountMerger) processMessage(msg message.Message) {

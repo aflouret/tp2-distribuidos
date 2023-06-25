@@ -17,7 +17,7 @@ type Consumer struct {
 	conn           *amqp.Connection
 	ch             *amqp.Channel
 	msgChannel     <-chan amqp.Delivery
-	eofsReceived   map[string]map[string]int
+	eofsReceived   map[string]map[string]map[string]bool
 	msgIDsReceived map[string]map[string]bool
 	config         ConsumerConfig
 	sigtermChannel chan os.Signal
@@ -29,6 +29,7 @@ type ConsumerConfig struct {
 	instanceID             string
 	previousStageInstances int
 	messageTypesToStore    []string
+	filterDuplicates       bool
 }
 
 func newConsumerConfig(configID string) (ConsumerConfig, error) {
@@ -40,6 +41,7 @@ func newConsumerConfig(configID string) (ConsumerConfig, error) {
 	exchangeName := v.GetString(fmt.Sprintf("%s.exchange_name", configID))
 	previousStageInstancesEnv := v.GetString(fmt.Sprintf("%s.prev_stage_instances_env", configID))
 	messageTypesToStore := v.GetStringSlice(fmt.Sprintf("%s.messages_to_store", configID))
+	filterDuplicates := v.GetBool(fmt.Sprintf("%s.filter_duplicate_batches", configID))
 	previousStageInstances, err := strconv.Atoi(os.Getenv(previousStageInstancesEnv))
 	if err != nil {
 		previousStageInstances = 1
@@ -53,6 +55,7 @@ func newConsumerConfig(configID string) (ConsumerConfig, error) {
 		instanceID:             instanceID,
 		previousStageInstances: previousStageInstances,
 		messageTypesToStore:    messageTypesToStore,
+		filterDuplicates:       filterDuplicates,
 	}, nil
 }
 
@@ -158,7 +161,7 @@ func NewConsumer(configID string, routingKey string) (*Consumer, error) {
 	sigtermChannel := make(chan os.Signal, 1)
 	signal.Notify(sigtermChannel, syscall.SIGTERM)
 
-	eofsReceived := make(map[string]map[string]int)
+	eofsReceived := make(map[string]map[string]map[string]bool)
 	msgIDsReceived := make(map[string]map[string]bool)
 	return &Consumer{
 		conn:           conn,
@@ -176,16 +179,14 @@ func (c *Consumer) Consume(processMessage func(message.Message)) {
 		fmt.Println("Recovering state")
 		recovery.Recover("recovery_files", func(msg message.Message) {
 			if msg.IsEOF() {
-				c.registerEOF(msg)
-				if c.isLastEOF(msg) {
-					processMessage(msg)
-				}
+				c.processEOF(msg, processMessage)
 			} else {
-				processMessage(msg)
+				c.processBatchMessage(msg, processMessage)
 			}
 		})
 		fmt.Println("Finished recovering")
 	}
+
 	storageManager, err := recovery.NewStorageManager("recovery_files")
 	failOnError(err, "Failed to create storage manager")
 	for {
@@ -193,76 +194,32 @@ func (c *Consumer) Consume(processMessage func(message.Message)) {
 		case <-c.sigtermChannel:
 			return
 		case delivery := <-c.msgChannel:
+			// Deserialize message
 			msg := message.Deserialize(string(delivery.Body))
+
+			// Process message and check for duplicates
+			var isDuplicateMessage bool
 			if msg.IsEOF() {
-				// Register EOF in map
-				c.registerEOF(msg)
-				fmt.Printf("[Client %s] Received %s %v of %v \n", msg.ClientID, msg.MsgType, c.eofsReceived[msg.ClientID][msg.MsgType], c.config.previousStageInstances)
-
-				// If it is the last EOF then process it
-				if c.isLastEOF(msg) {
-					fmt.Printf("[Client %s] Received all %s eofs\n", msg.ClientID, msg.MsgType)
-					processMessage(msg)
-				}
-
-				// Store message if necessary
-				if c.shouldStore(msg) {
-					err := storageManager.Store(msg)
-					failOnError(err, fmt.Sprintf("error storing message %v", msg))
-				}
-
-				// ACK message
-				delivery.Ack(false)
-
-				if c.isLastEOF(msg) {
-					// Delete resources allocated for client
-					delete(c.eofsReceived, msg.ClientID)
-					delete(c.msgIDsReceived, msg.ClientID)
-					// Return if it is the last results EOF
-					if msg.MsgType == message.ResultsEOF {
-						return
-					}
-				}
+				isDuplicateMessage = c.processEOF(msg, processMessage)
 			} else {
-				// Process message
-				processMessage(msg)
+				isDuplicateMessage = c.processBatchMessage(msg, processMessage)
+			}
 
-				// Store message if necessary
-				if c.shouldStore(msg) {
-					err := storageManager.Store(msg)
-					failOnError(err, fmt.Sprintf("error storing message %v", msg))
-				}
+			// Store message if necessary
+			if c.shouldStore(msg) && !isDuplicateMessage {
+				err := storageManager.Store(msg)
+				failOnError(err, fmt.Sprintf("error storing message %v", msg))
+			}
 
-				// ACK message
-				delivery.Ack(false)
+			// ACK message
+			delivery.Ack(false)
+
+			// Return if it is the last Result EOF
+			if c.isResultsConsumer() && c.receivedAllEOFs(msg.ClientID, msg.MsgType) {
+				return
 			}
 		}
 	}
-}
-
-func (c *Consumer) ConsumeAndFilterDuplicates(processMessage func(message.Message)) {
-	c.Consume(func(msg message.Message) {
-		// Allocate map for client if it does not exist
-		if _, ok := c.msgIDsReceived[msg.ClientID]; !ok {
-			c.msgIDsReceived[msg.ClientID] = make(map[string]bool)
-		}
-
-		// If it is the last EOF message it is not filtered here. Consume already takes care of that.
-		if c.isLastEOF(msg) {
-			processMessage(msg)
-			return
-		}
-
-		// If the message was already received it is not processed
-		if _, ok := c.msgIDsReceived[msg.ClientID][msg.ID]; ok {
-			fmt.Printf("[Client %s] Received duplicate message: %v\n", msg.ClientID, msg.ID)
-			return
-		}
-
-		// Register and process message
-		c.msgIDsReceived[msg.ClientID][msg.ID] = true
-		processMessage(msg)
-	})
 }
 
 func (c *Consumer) Close() {
@@ -270,17 +227,58 @@ func (c *Consumer) Close() {
 	c.conn.Close()
 }
 
-func (c *Consumer) registerEOF(msg message.Message) {
+func (c *Consumer) processEOF(msg message.Message, processMessage func(message.Message)) (isDuplicateMessage bool) {
+	// Allocate map for client and type if it does not exist
 	if _, ok := c.eofsReceived[msg.ClientID]; !ok {
-		c.eofsReceived[msg.ClientID] = make(map[string]int)
-		c.eofsReceived[msg.ClientID][msg.MsgType] = 1
-	} else {
-		c.eofsReceived[msg.ClientID][msg.MsgType] += 1
+		c.eofsReceived[msg.ClientID] = make(map[string]map[string]bool)
 	}
+	if _, ok := c.eofsReceived[msg.ClientID][msg.MsgType]; !ok {
+		c.eofsReceived[msg.ClientID][msg.MsgType] = make(map[string]bool)
+	}
+
+	// If the message was already received, do nothing
+	if received := c.eofsReceived[msg.ClientID][msg.MsgType][msg.ID]; received {
+		fmt.Printf("[Client %s] Received duplicate %v EOF: %v\n", msg.ClientID, msg.MsgType, msg.ID)
+		return true
+	}
+
+	// Register EOF in map
+	c.eofsReceived[msg.ClientID][msg.MsgType][msg.ID] = true
+	fmt.Printf("[Client %s] Received %s %v of %v \n", msg.ClientID, msg.MsgType, len(c.eofsReceived[msg.ClientID][msg.MsgType]), c.config.previousStageInstances)
+
+	// If it is the last EOF then process it
+	if c.receivedAllEOFs(msg.ClientID, msg.MsgType) {
+		fmt.Printf("[Client %s] Received all %s eofs\n", msg.ClientID, msg.MsgType)
+		processMessage(msg)
+		// Delete resources allocated for client
+		//delete(c.eofsReceived, msg.ClientID)
+		//delete(c.msgIDsReceived, msg.ClientID)
+	}
+	return false
 }
 
-func (c *Consumer) isLastEOF(msg message.Message) bool {
-	return msg.IsEOF() && c.eofsReceived[msg.ClientID][msg.MsgType] == c.config.previousStageInstances
+func (c *Consumer) processBatchMessage(msg message.Message, processMessage func(message.Message)) (isDuplicateMessage bool) {
+	if c.shouldFilterDuplicates() {
+		// Allocate map for client if it does not exist
+		if _, ok := c.msgIDsReceived[msg.ClientID]; !ok {
+			c.msgIDsReceived[msg.ClientID] = make(map[string]bool)
+		}
+
+		// If the message was already received, do nothing
+		if received := c.msgIDsReceived[msg.ClientID][msg.ID]; received {
+			fmt.Printf("[Client %s] Received duplicate message: %v\n", msg.ClientID, msg.ID)
+			return true
+		}
+
+		// Register and process message
+		c.msgIDsReceived[msg.ClientID][msg.ID] = true
+	}
+	processMessage(msg)
+	return false
+}
+
+func (c *Consumer) receivedAllEOFs(clientID string, msgType string) bool {
+	return len(c.eofsReceived[clientID][msgType]) == c.config.previousStageInstances
 }
 
 func (c *Consumer) shouldStore(msg message.Message) bool {
@@ -290,6 +288,10 @@ func (c *Consumer) shouldStore(msg message.Message) bool {
 		}
 	}
 	return false
+}
+
+func (c *Consumer) shouldFilterDuplicates() bool {
+	return c.config.filterDuplicates
 }
 
 func (c *Consumer) isResultsConsumer() bool {

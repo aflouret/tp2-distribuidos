@@ -94,7 +94,7 @@ func (j *StationsJoiner) processTripsMessage(msg message.Message) {
 		fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(j.startTime).String(), msg.ID)
 	}
 	trips := msg.Batch
-	joinedTrips := j.joinStations(msg.City, trips, msg.ClientID, msg.ID)
+	joinedTrips := j.joinStations(msg.City, trips, msg.ClientID)
 
 	if len(joinedTrips) > 0 {
 
@@ -118,11 +118,10 @@ func getStationKey(code, year, city string) string {
 	return fmt.Sprintf("%s-%s-%s", code, year, city)
 }
 
-func (j *StationsJoiner) joinStations(city string, trips []string, clientID string, id string) []string {
+func (j *StationsJoiner) joinStations(city string, trips []string, clientID string) []string {
 	stations := j.stations[clientID]
 	joinedTrips := make([]string, len(trips))
 	i := 0
-	timer := time.Now()
 	for _, trip := range trips {
 		tripFields := strings.Split(trip, ",")
 
@@ -150,9 +149,6 @@ func (j *StationsJoiner) joinStations(city string, trips []string, clientID stri
 		)
 		joinedTrips[i] = joinedTrip
 		i++
-	}
-	if time.Since(timer) > 20*time.Millisecond {
-		fmt.Printf("[Client %s] Batch %v processed in %s:\n", clientID, id, time.Since(timer).String())
 	}
 	return joinedTrips[:i]
 }
