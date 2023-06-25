@@ -42,7 +42,7 @@ func (m *DistanceMerger) Run() {
 	defer m.consumer.Close()
 	defer m.producer.Close()
 
-	m.consumer.Consume(m.processMessage)
+	m.consumer.ConsumeAndFilterDuplicates(m.processMessage)
 }
 
 func (m *DistanceMerger) processMessage(msg message.Message) {
@@ -104,8 +104,8 @@ func (m *DistanceMerger) sendResults(clientID string) {
 			result += fmt.Sprintf("%s,%v\n", s, avg)
 		}
 	}
-	msg := message.NewResultsBatchMessage("", clientID, []string{result})
+	msg := message.NewResultsBatchMessage("3", clientID, []string{result})
 	m.producer.PublishMessage(msg, msg.ClientID)
-	eof := message.NewResultsEOFMessage("1", clientID)
+	eof := message.NewResultsEOFMessage("3", clientID)
 	m.producer.PublishMessage(eof, msg.ClientID)
 }

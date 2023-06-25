@@ -46,7 +46,7 @@ func (a *DistanceAverager) Run() {
 	defer a.producer.Close()
 
 	a.startTime = time.Now()
-	a.consumer.Consume(a.processMessage)
+	a.consumer.ConsumeAndFilterDuplicates(a.processMessage)
 }
 
 func (a *DistanceAverager) processMessage(msg message.Message) {

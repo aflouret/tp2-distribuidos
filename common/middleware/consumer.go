@@ -18,6 +18,7 @@ type Consumer struct {
 	ch             *amqp.Channel
 	msgChannel     <-chan amqp.Delivery
 	eofsReceived   map[string]map[string]int
+	msgIDsReceived map[string]map[string]bool
 	config         ConsumerConfig
 	sigtermChannel chan os.Signal
 }
@@ -158,11 +159,13 @@ func NewConsumer(configID string, routingKey string) (*Consumer, error) {
 	signal.Notify(sigtermChannel, syscall.SIGTERM)
 
 	eofsReceived := make(map[string]map[string]int)
+	msgIDsReceived := make(map[string]map[string]bool)
 	return &Consumer{
 		conn:           conn,
 		ch:             ch,
 		msgChannel:     msgs,
 		eofsReceived:   eofsReceived,
+		msgIDsReceived: msgIDsReceived,
 		config:         config,
 		sigtermChannel: sigtermChannel,
 	}, nil
@@ -211,9 +214,14 @@ func (c *Consumer) Consume(processMessage func(message.Message)) {
 				// ACK message
 				delivery.Ack(false)
 
-				// Return if it is the last results EOF
-				if c.isLastEOF(msg) && msg.MsgType == message.ResultsEOF {
-					return
+				if c.isLastEOF(msg) {
+					// Delete resources allocated for client
+					delete(c.eofsReceived, msg.ClientID)
+					delete(c.msgIDsReceived, msg.ClientID)
+					// Return if it is the last results EOF
+					if msg.MsgType == message.ResultsEOF {
+						return
+					}
 				}
 			} else {
 				// Process message
@@ -232,6 +240,31 @@ func (c *Consumer) Consume(processMessage func(message.Message)) {
 	}
 }
 
+func (c *Consumer) ConsumeAndFilterDuplicates(processMessage func(message.Message)) {
+	c.Consume(func(msg message.Message) {
+		// Allocate map for client if it does not exist
+		if _, ok := c.msgIDsReceived[msg.ClientID]; !ok {
+			c.msgIDsReceived[msg.ClientID] = make(map[string]bool)
+		}
+
+		// If it is the last EOF message it is not filtered here. Consume already takes care of that.
+		if c.isLastEOF(msg) {
+			processMessage(msg)
+			return
+		}
+
+		// If the message was already received it is not processed
+		if _, ok := c.msgIDsReceived[msg.ClientID][msg.ID]; ok {
+			fmt.Printf("[Client %s] Received duplicate message: %v\n", msg.ClientID, msg.ID)
+			return
+		}
+
+		// Register and process message
+		c.msgIDsReceived[msg.ClientID][msg.ID] = true
+		processMessage(msg)
+	})
+}
+
 func (c *Consumer) Close() {
 	c.ch.Close()
 	c.conn.Close()
@@ -247,7 +280,7 @@ func (c *Consumer) registerEOF(msg message.Message) {
 }
 
 func (c *Consumer) isLastEOF(msg message.Message) bool {
-	return c.eofsReceived[msg.ClientID][msg.MsgType] == c.config.previousStageInstances
+	return msg.IsEOF() && c.eofsReceived[msg.ClientID][msg.MsgType] == c.config.previousStageInstances
 }
 
 func (c *Consumer) shouldStore(msg message.Message) bool {

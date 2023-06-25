@@ -47,7 +47,7 @@ func (a *TripCounter) Run() {
 	defer a.producer.Close()
 	a.startTime = time.Now()
 
-	a.consumer.Consume(a.processMessage)
+	a.consumer.ConsumeAndFilterDuplicates(a.processMessage)
 }
 
 func (a *TripCounter) processMessage(msg message.Message) {

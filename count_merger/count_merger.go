@@ -41,7 +41,7 @@ func (m *CountMerger) Run() {
 	defer m.consumer.Close()
 	defer m.producer.Close()
 
-	m.consumer.Consume(m.processMessage)
+	m.consumer.ConsumeAndFilterDuplicates(m.processMessage)
 }
 
 func (m *CountMerger) processMessage(msg message.Message) {
@@ -115,8 +115,8 @@ func (m *CountMerger) sendResults(clientID string) {
 		}
 	}
 
-	msg := message.NewResultsBatchMessage("", clientID, []string{result})
+	msg := message.NewResultsBatchMessage("2", clientID, []string{result})
 	m.producer.PublishMessage(msg, msg.ClientID)
-	eof := message.NewResultsEOFMessage("1", clientID)
+	eof := message.NewResultsEOFMessage("2", clientID)
 	m.producer.PublishMessage(eof, msg.ClientID)
 }

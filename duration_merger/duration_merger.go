@@ -40,7 +40,7 @@ func (m *DurationMerger) Run() {
 	defer m.consumer.Close()
 	defer m.producer.Close()
 
-	m.consumer.Consume(m.processMessage)
+	m.consumer.ConsumeAndFilterDuplicates(m.processMessage)
 }
 
 func (m *DurationMerger) processMessage(msg message.Message) {
@@ -100,7 +100,7 @@ func (m *DurationMerger) sendResults(clientID string) {
 		result += fmt.Sprintf("%s,%v\n", date, avg)
 	}
 
-	msg := message.NewResultsBatchMessage("", clientID, []string{result})
+	msg := message.NewResultsBatchMessage("1", clientID, []string{result})
 	m.producer.PublishMessage(msg, msg.ClientID)
 	eof := message.NewResultsEOFMessage("1", clientID)
 	m.producer.PublishMessage(eof, msg.ClientID)
