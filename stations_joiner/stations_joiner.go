@@ -195,7 +195,7 @@ func (j *StationsJoiner) savePendingTrip(clientID string, city string, trip stri
 		j.pendingTrips[clientID] = make(map[string][]string)
 	}
 	if _, ok := j.pendingTrips[clientID][city]; !ok {
-		j.pendingTrips[clientID][city] = make([]string, batchSize)
+		j.pendingTrips[clientID][city] = make([]string, 0, batchSize)
 	}
 	j.pendingTrips[clientID][city] = append(j.pendingTrips[clientID][city], trip)
 }
@@ -206,7 +206,7 @@ func (j *StationsJoiner) processPendingTrips(clientID string) {
 		return
 	}
 	for city, trips := range tripsByCity {
-		fmt.Printf("Processing %v pending trips\n", len(trips))
+		fmt.Printf("[Client %s] Processing %v pending trips\n", clientID, len(trips))
 		batch := make([]string, 0, batchSize)
 		batchNumber := 1
 		for i, trip := range trips {
@@ -220,5 +220,5 @@ func (j *StationsJoiner) processPendingTrips(clientID string) {
 			}
 		}
 	}
-
+	delete(j.pendingTrips, clientID)
 }

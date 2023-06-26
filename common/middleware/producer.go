@@ -115,8 +115,9 @@ func (p *Producer) getRoutingKey(msg message.Message) string {
 		if strings.Contains(msg.ID, ".") {
 			splitID := strings.Split(msg.ID, ".")
 			msgID, _ = strconv.Atoi(splitID[len(splitID)-1])
+		} else {
+			msgID, _ = strconv.Atoi(msg.ID)
 		}
-		msgID, _ = strconv.Atoi(msg.ID)
 		consumerID := msgID % p.config.nextStageInstances
 		routingKey = fmt.Sprintf("%v", consumerID)
 	}
