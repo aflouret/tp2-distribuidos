@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/viper"
 	"os"
 	"strconv"
+	"strings"
 	"tp1/common/message"
 )
 
@@ -79,13 +80,7 @@ func NewProducer(configID string) (*Producer, error) {
 
 func (p *Producer) PublishMessage(msg message.Message, routingKey string) {
 	if routingKey == "" {
-		if msg.IsEOF() {
-			routingKey = "eof"
-		} else if p.config.routeByID {
-			msgID, _ := strconv.Atoi(msg.ID)
-			consumerID := msgID % p.config.nextStageInstances
-			routingKey = fmt.Sprintf("%v", consumerID)
-		}
+		routingKey = p.getRoutingKey(msg)
 	}
 	if msg.IsEOF() {
 		msg.ID = p.config.instanceID
@@ -109,4 +104,21 @@ func (p *Producer) PublishMessage(msg message.Message, routingKey string) {
 func (p *Producer) Close() {
 	p.ch.Close()
 	p.conn.Close()
+}
+
+func (p *Producer) getRoutingKey(msg message.Message) string {
+	var routingKey string
+	if msg.IsEOF() {
+		routingKey = "eof"
+	} else if p.config.routeByID {
+		var msgID int
+		if strings.Contains(msg.ID, ".") {
+			splitID := strings.Split(msg.ID, ".")
+			msgID, _ = strconv.Atoi(splitID[len(splitID)-1])
+		}
+		msgID, _ = strconv.Atoi(msg.ID)
+		consumerID := msgID % p.config.nextStageInstances
+		routingKey = fmt.Sprintf("%v", consumerID)
+	}
+	return routingKey
 }

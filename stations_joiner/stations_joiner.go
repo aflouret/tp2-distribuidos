@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 	"tp1/common/message"
@@ -13,6 +14,7 @@ const (
 	tripEndStationCodeIndex
 	tripYearIdIndex
 )
+const batchSize = 500
 
 type station struct {
 	name      string
@@ -21,25 +23,34 @@ type station struct {
 }
 
 type StationsJoiner struct {
+	instanceID                 string
 	yearFilterProducer         *middleware.Producer
 	distanceCalculatorProducer *middleware.Producer
 	consumer                   *middleware.Consumer
 	stations                   map[string]map[string]station
+	pendingTrips               map[string]map[string][]string
+	stationsEOFs               map[string]bool
 	msgCount                   int
 	startTime                  time.Time
 }
 
 func NewStationsJoiner(
+	instanceID string,
 	consumer *middleware.Consumer,
 	yearFilterProducer *middleware.Producer,
 	distanceCalculatorProducer *middleware.Producer,
 ) *StationsJoiner {
 	stations := make(map[string]map[string]station)
+	pendingTrips := make(map[string]map[string][]string)
+	stationsEOFs := make(map[string]bool)
 	return &StationsJoiner{
+		instanceID:                 instanceID,
 		consumer:                   consumer,
 		yearFilterProducer:         yearFilterProducer,
 		distanceCalculatorProducer: distanceCalculatorProducer,
 		stations:                   stations,
+		pendingTrips:               pendingTrips,
+		stationsEOFs:               stationsEOFs,
 		startTime:                  time.Now(),
 	}
 }
@@ -63,6 +74,8 @@ func (j *StationsJoiner) processMessage(msg message.Message) {
 
 func (j *StationsJoiner) processStationsMessage(msg message.Message) {
 	if msg.IsEOF() {
+		j.stationsEOFs[msg.ClientID] = true
+		j.processPendingTrips(msg.ClientID)
 		return
 	}
 
@@ -131,11 +144,17 @@ func (j *StationsJoiner) joinStations(city string, trips []string, clientID stri
 		startStationKey := getStationKey(startStationCode, year, city)
 		startStation, ok := stations[startStationKey]
 		if !ok {
+			if !j.receivedStationsEOF(clientID) {
+				j.savePendingTrip(clientID, city, trip)
+			}
 			continue
 		}
 		endStationKey := getStationKey(endStationCode, year, city)
 		endStation, ok := stations[endStationKey]
 		if !ok {
+			if !j.receivedStationsEOF(clientID) {
+				j.savePendingTrip(clientID, city, trip)
+			}
 			continue
 		}
 		joinedTrip := fmt.Sprintf("%s,%s,%s,%s,%s,%s,%s",
@@ -165,4 +184,41 @@ func (j *StationsJoiner) dropDataForYearFilter(trips []string) []string {
 		tripsToSend[i] = tripToSend
 	}
 	return tripsToSend
+}
+
+func (j *StationsJoiner) receivedStationsEOF(clientID string) bool {
+	return j.stationsEOFs[clientID]
+}
+
+func (j *StationsJoiner) savePendingTrip(clientID string, city string, trip string) {
+	if _, ok := j.pendingTrips[clientID]; !ok {
+		j.pendingTrips[clientID] = make(map[string][]string)
+	}
+	if _, ok := j.pendingTrips[clientID][city]; !ok {
+		j.pendingTrips[clientID][city] = make([]string, batchSize)
+	}
+	j.pendingTrips[clientID][city] = append(j.pendingTrips[clientID][city], trip)
+}
+
+func (j *StationsJoiner) processPendingTrips(clientID string) {
+	tripsByCity, ok := j.pendingTrips[clientID]
+	if !ok {
+		return
+	}
+	for city, trips := range tripsByCity {
+		fmt.Printf("Processing %v pending trips\n", len(trips))
+		batch := make([]string, 0, batchSize)
+		batchNumber := 1
+		for i, trip := range trips {
+			index := i + 1
+			batch = append(batch, trip)
+			if index%batchSize == 0 || index == len(trips) {
+				msg := message.NewTripsBatchMessage("s"+"."+j.instanceID+"."+strconv.Itoa(batchNumber), clientID, city, batch)
+				j.processTripsMessage(msg)
+				batch = make([]string, 0, batchSize)
+				batchNumber++
+			}
+		}
+	}
+
 }
