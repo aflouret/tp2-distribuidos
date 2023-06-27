@@ -1,6 +1,10 @@
 consumer:
   exchange_name: results
   prev_stage_instances_env: MERGER_INSTANCES
+  filter_duplicate_batches: true
+  messages_to_store:
+    - RE
+    - R
 producer:
   exchange_name: data_dropper
   next_stage_instances_env: DATA_DROPPER_INSTANCES

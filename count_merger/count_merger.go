@@ -56,15 +56,6 @@ func (m *CountMerger) processMessage(msg message.Message) {
 }
 
 func (m *CountMerger) mergeResults(msg message.Message) error {
-	result := msg.Batch[0]
-	fields := strings.Split(result, ",")
-	year := fields[yearIndex]
-	startStationName := fields[startStationNameIndex]
-	count, err := strconv.Atoi(fields[countIndex])
-	if err != nil {
-		return err
-	}
-
 	countByStationYear1, ok := m.countByStationYear1[msg.ClientID]
 	if !ok {
 		countByStationYear1 = make(map[string]int)
@@ -74,17 +65,28 @@ func (m *CountMerger) mergeResults(msg message.Message) error {
 		countByStationYear2 = make(map[string]int)
 	}
 
-	if year == m.year1 {
-		if c, ok := countByStationYear1[startStationName]; ok {
-			countByStationYear1[startStationName] = c + count
-		} else {
-			countByStationYear1[startStationName] = count
+	results := msg.Batch
+	for _, result := range results {
+		fields := strings.Split(result, ",")
+		year := fields[yearIndex]
+		startStationName := fields[startStationNameIndex]
+		count, err := strconv.Atoi(fields[countIndex])
+		if err != nil {
+			return err
 		}
-	} else if year == m.year2 {
-		if c, ok := countByStationYear2[startStationName]; ok {
-			countByStationYear2[startStationName] = c + count
-		} else {
-			countByStationYear2[startStationName] = count
+
+		if year == m.year1 {
+			if c, ok := countByStationYear1[startStationName]; ok {
+				countByStationYear1[startStationName] = c + count
+			} else {
+				countByStationYear1[startStationName] = count
+			}
+		} else if year == m.year2 {
+			if c, ok := countByStationYear2[startStationName]; ok {
+				countByStationYear2[startStationName] = c + count
+			} else {
+				countByStationYear2[startStationName] = count
+			}
 		}
 	}
 
@@ -113,8 +115,8 @@ func (m *CountMerger) sendResults(clientID string) {
 		}
 	}
 
-	msg := message.NewResultsBatchMessage("", clientID, []string{result})
+	msg := message.NewResultsBatchMessage("count_merger", clientID, []string{result})
 	m.producer.PublishMessage(msg, msg.ClientID)
-	eof := message.NewResultsEOFMessage("1", clientID)
+	eof := message.NewResultsEOFMessage(clientID)
 	m.producer.PublishMessage(eof, msg.ClientID)
 }

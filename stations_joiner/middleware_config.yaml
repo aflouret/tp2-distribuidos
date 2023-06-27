@@ -1,6 +1,10 @@
 consumer:
   exchange_name: stations_joiner
   prev_stage_instances_env: DATA_DROPPER_INSTANCES
+  messages_to_store:
+    - TE
+    - SE
+    - S
 year_filter_producer:
   exchange_name: year_filter
   next_stage_instances_env: YEAR_FILTER_INSTANCES

@@ -28,6 +28,7 @@ type ConnectionHandler struct {
 	producer        *middleware.Producer
 	resultsConsumer *middleware.Consumer
 	conn            net.Conn
+	batchCounter    int
 }
 
 func NewConnectionHandler(conn net.Conn) *ConnectionHandler {
@@ -133,7 +134,6 @@ func (h *ConnectionHandler) handleTrips(city string) {
 }
 
 func (h *ConnectionHandler) readBatchesAndSend(city string, endMessageType uint8, batchMessageType string, startTime time.Time) {
-	batchCounter := 0
 	for {
 		select {
 		case <-h.sigtermNotifier:
@@ -154,28 +154,28 @@ func (h *ConnectionHandler) readBatchesAndSend(city string, endMessageType uint8
 			return
 		}
 		protocol.Send(h.conn, protocol.Message{Type: protocol.Ack, Payload: ""})
-		batchID := strconv.Itoa(batchCounter)
+		batchID := strconv.Itoa(h.batchCounter)
 		lines := strings.Split(msg.Payload, ";")
 		batchMsg := message.NewBatchMessage(batchMessageType, batchID, h.id, city, lines)
 		h.producer.PublishMessage(batchMsg, "")
-		if batchCounter%10000 == 0 {
+		if h.batchCounter%10000 == 0 {
 			fmt.Printf("[CLIENT %s] Time: %s Received batch %s\n", h.id, time.Since(startTime).String(), batchID)
 		}
-		batchCounter++
+		h.batchCounter++
 	}
 }
 
 func (h *ConnectionHandler) handleEndStaticData() {
-	stationsEOF := message.NewStationsEOFMessage("1", h.id)
+	stationsEOF := message.NewStationsEOFMessage(h.id)
 	h.producer.PublishMessage(stationsEOF, "")
-	weatherEOF := message.NewWeatherEOFMessage("1", h.id)
+	weatherEOF := message.NewWeatherEOFMessage(h.id)
 	h.producer.PublishMessage(weatherEOF, "")
 	protocol.Send(h.conn, protocol.Message{Type: protocol.Ack, Payload: ""})
 }
 
 func (h *ConnectionHandler) handleResults() {
 	protocol.Send(h.conn, protocol.Message{Type: protocol.Ack, Payload: ""})
-	tripsEOF := message.NewTripsEOFMessage("1", h.id)
+	tripsEOF := message.NewTripsEOFMessage(h.id)
 	h.producer.PublishMessage(tripsEOF, "")
 	h.resultsConsumer.Consume(func(msg message.Message) {
 		if msg.IsEOF() {

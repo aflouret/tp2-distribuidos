@@ -71,61 +71,46 @@ func (d *DataDropper) processTripsMessage(msg message.Message) {
 		return
 	}
 
-	sanitizedTrips := d.sanitize(msg)
+	if d.msgCount%5000 == 0 {
+		fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(d.startTime).String(), msg.ID)
+	}
 
-	weatherJoinerTrips := d.dropDataForWeatherJoiner(sanitizedTrips)
+	weatherJoinerTrips, stationsJoinerTrips := d.dropData(msg)
+
 	weatherJoinerMessage := message.NewTripsBatchMessage(msg.ID, msg.ClientID, msg.City, weatherJoinerTrips)
 	d.weatherJoinerProducer.PublishMessage(weatherJoinerMessage, "")
 
-	stationsJoinerTrips := d.dropDataForStationsJoiner(sanitizedTrips)
 	stationsJoinerMessage := message.NewTripsBatchMessage(msg.ID, msg.ClientID, msg.City, stationsJoinerTrips)
 	d.stationsJoinerProducer.PublishMessage(stationsJoinerMessage, "")
 
-	if d.msgCount%20000 == 0 {
-		fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(d.startTime).String(), msg.ID)
-	}
 	d.msgCount++
 }
 
-func (d *DataDropper) sanitize(msg message.Message) []string {
+func (d *DataDropper) dropData(msg message.Message) ([]string, []string) {
 	trips := msg.Batch
-	sanitizedTrips := make([]string, 0, len(trips))
+	tripsToSendToWeatherJoiner := make([]string, len(trips))
+	tripsToSendToStationsJoiner := make([]string, len(trips))
+	fieldsToSendToWeatherJoiner := make([]string, len(columnsForWeatherJoiner))
+	fieldsToSendToStationsJoiner := make([]string, len(columnsForStationsJoiner))
+
 	for i := range trips {
 		fields := strings.Split(trips[i], ",")
 		duration, err := strconv.ParseFloat(fields[durationSecIndex], 64)
 		if err != nil || duration < 0 {
 			fields[durationSecIndex] = "0"
 		}
-
 		day := strings.Split(fields[startDateIndex], " ")[0]
 		fields[startDateIndex] = day
-		sanitizedTrips = append(sanitizedTrips, strings.Join(fields, ","))
-	}
-	return sanitizedTrips
-}
 
-func (d *DataDropper) dropDataForWeatherJoiner(trips []string) []string {
-	tripsToSend := make([]string, 0, len(trips))
-	for i := range trips {
-		fields := strings.Split(trips[i], ",")
-		var fieldsToSend []string
-		for _, col := range columnsForWeatherJoiner {
-			fieldsToSend = append(fieldsToSend, fields[col])
+		for i, col := range columnsForWeatherJoiner {
+			fieldsToSendToWeatherJoiner[i] = fields[col]
 		}
-		tripsToSend = append(tripsToSend, strings.Join(fieldsToSend, ","))
-	}
-	return tripsToSend
-}
+		tripsToSendToWeatherJoiner[i] = strings.Join(fieldsToSendToWeatherJoiner, ",")
 
-func (d *DataDropper) dropDataForStationsJoiner(trips []string) []string {
-	tripsToSend := make([]string, 0, len(trips))
-	for i := range trips {
-		fields := strings.Split(trips[i], ",")
-		var fieldsToSend []string
-		for _, col := range columnsForStationsJoiner {
-			fieldsToSend = append(fieldsToSend, fields[col])
+		for i, col := range columnsForStationsJoiner {
+			fieldsToSendToStationsJoiner[i] = fields[col]
 		}
-		tripsToSend = append(tripsToSend, strings.Join(fieldsToSend, ","))
+		tripsToSendToStationsJoiner[i] = strings.Join(fieldsToSendToStationsJoiner, ",")
 	}
-	return tripsToSend
+	return tripsToSendToWeatherJoiner, tripsToSendToStationsJoiner
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 	"tp1/common/message"
@@ -12,24 +13,34 @@ const (
 	tripStartDateIndex = iota
 	tripDurationIndex
 )
+const batchSize = 500
 
 type WeatherJoiner struct {
+	instanceID                 string
 	producer                   *middleware.Producer
 	consumer                   *middleware.Consumer
 	precipitationsByDateByCity map[string]map[string]map[string]string
+	pendingTrips               map[string]map[string][]string
+	weatherEOFs                map[string]bool
 	msgCount                   int
 	startTime                  time.Time
 }
 
 func NewWeatherJoiner(
+	instanceID string,
 	producer *middleware.Producer,
 	consumer *middleware.Consumer,
 ) *WeatherJoiner {
 	precipitationsByDateByCity := make(map[string]map[string]map[string]string)
+	pendingTrips := make(map[string]map[string][]string)
+	weatherEOFs := make(map[string]bool)
 	return &WeatherJoiner{
+		instanceID:                 instanceID,
 		producer:                   producer,
 		consumer:                   consumer,
 		precipitationsByDateByCity: precipitationsByDateByCity,
+		pendingTrips:               pendingTrips,
+		weatherEOFs:                weatherEOFs,
 		startTime:                  time.Now(),
 	}
 }
@@ -53,6 +64,8 @@ func (j *WeatherJoiner) processMessage(msg message.Message) {
 
 func (j *WeatherJoiner) processWeatherMessage(msg message.Message) {
 	if msg.IsEOF() {
+		j.weatherEOFs[msg.ClientID] = true
+		j.processPendingTrips(msg.ClientID)
 		return
 	}
 
@@ -93,7 +106,6 @@ func (j *WeatherJoiner) processTripsMessage(msg message.Message) {
 			fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(j.startTime).String(), msg.ID)
 		}
 	}
-
 	j.msgCount++
 }
 
@@ -107,6 +119,9 @@ func (j *WeatherJoiner) joinWeather(city string, trips []string, clientID string
 
 		precipitations, ok := precipitationsByDateByCity[city][startDate]
 		if !ok {
+			if !j.receivedWeatherEOF(clientID) {
+				j.savePendingTrip(clientID, city, trip)
+			}
 			continue
 		}
 
@@ -117,4 +132,41 @@ func (j *WeatherJoiner) joinWeather(city string, trips []string, clientID string
 		joinedTrips = append(joinedTrips, joinedTrip)
 	}
 	return joinedTrips
+}
+
+func (j *WeatherJoiner) receivedWeatherEOF(clientID string) bool {
+	return j.weatherEOFs[clientID]
+}
+
+func (j *WeatherJoiner) savePendingTrip(clientID string, city string, trip string) {
+	if _, ok := j.pendingTrips[clientID]; !ok {
+		j.pendingTrips[clientID] = make(map[string][]string)
+	}
+	if _, ok := j.pendingTrips[clientID][city]; !ok {
+		j.pendingTrips[clientID][city] = make([]string, 0, batchSize)
+	}
+	j.pendingTrips[clientID][city] = append(j.pendingTrips[clientID][city], trip)
+}
+
+func (j *WeatherJoiner) processPendingTrips(clientID string) {
+	tripsByCity, ok := j.pendingTrips[clientID]
+	if !ok {
+		return
+	}
+	for city, trips := range tripsByCity {
+		fmt.Printf("[Client %s] Processing %v pending trips\n", clientID, len(trips))
+		batch := make([]string, 0, batchSize)
+		batchNumber := 1
+		for i, trip := range trips {
+			index := i + 1
+			batch = append(batch, trip)
+			if index%batchSize == 0 || index == len(trips) {
+				msg := message.NewTripsBatchMessage("w"+"."+j.instanceID+"."+strconv.Itoa(batchNumber), clientID, city, batch)
+				j.processTripsMessage(msg)
+				batch = make([]string, 0, batchSize)
+				batchNumber++
+			}
+		}
+	}
+	delete(j.pendingTrips, clientID)
 }

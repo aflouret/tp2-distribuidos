@@ -12,6 +12,8 @@ const (
 )
 
 func main() {
+	instanceID := os.Getenv("ID")
+
 	year1 := os.Getenv("YEAR_1")
 	if year1 == "" {
 		year1 = defaultYear1
@@ -30,6 +32,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	tripCounter := NewTripCounter(year1, year2, consumer, producer)
+	tripCounter := NewTripCounter(instanceID, year1, year2, consumer, producer)
 	tripCounter.Run()
 }

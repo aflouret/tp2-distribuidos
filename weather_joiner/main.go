@@ -2,10 +2,13 @@ package main
 
 import (
 	"log"
+	"os"
 	"tp1/common/middleware"
 )
 
 func main() {
+	instanceID := os.Getenv("ID")
+
 	producer, err := middleware.NewProducer("producer")
 	if err != nil {
 		log.Fatal(err)
@@ -15,6 +18,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	weatherJoiner := NewWeatherJoiner(producer, consumer)
+	weatherJoiner := NewWeatherJoiner(instanceID, producer, consumer)
 	weatherJoiner.Run()
 }
