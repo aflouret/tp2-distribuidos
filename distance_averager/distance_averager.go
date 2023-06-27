@@ -2,17 +2,19 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
+	"tp1/common/message"
 	"tp1/common/middleware"
-	"tp1/common/utils"
 )
 
 const (
 	endStationNameIndex = iota
 	distanceIndex
 )
+const batchSize = 500
 
 type average struct {
 	avg   float64
@@ -20,17 +22,19 @@ type average struct {
 }
 
 type DistanceAverager struct {
+	instanceID            string
 	producer              *middleware.Producer
 	consumer              *middleware.Consumer
-	avgDistancesByStation map[string]average
+	avgDistancesByStation map[string]map[string]average
 	msgCount              int
 	startTime             time.Time
 }
 
-func NewDistanceAverager(consumer *middleware.Consumer, producer *middleware.Producer) *DistanceAverager {
-	avgDistancesByStation := make(map[string]average)
+func NewDistanceAverager(instanceID string, consumer *middleware.Consumer, producer *middleware.Producer) *DistanceAverager {
+	avgDistancesByStation := make(map[string]map[string]average)
 
 	return &DistanceAverager{
+		instanceID:            instanceID,
 		producer:              producer,
 		consumer:              consumer,
 		avgDistancesByStation: avgDistancesByStation,
@@ -43,25 +47,29 @@ func (a *DistanceAverager) Run() {
 
 	a.startTime = time.Now()
 	a.consumer.Consume(a.processMessage)
-	a.sendResults()
 }
 
-func (a *DistanceAverager) processMessage(msg string) {
-	if msg == "eof" {
+func (a *DistanceAverager) processMessage(msg message.Message) {
+	if msg.IsEOF() {
+		a.sendResults(msg.ClientID)
+		delete(a.avgDistancesByStation, msg.ClientID)
 		return
 	}
 
-	id, _, trips := utils.ParseBatch(msg)
-
-	a.updateAverage(trips)
+	a.updateAverage(msg)
 
 	if a.msgCount%20000 == 0 {
-		fmt.Printf("Time: %s Received batch %v\n", time.Since(a.startTime).String(), id)
+		fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(a.startTime).String(), msg.ID)
 	}
 	a.msgCount++
 }
 
-func (a *DistanceAverager) updateAverage(trips []string) {
+func (a *DistanceAverager) updateAverage(msg message.Message) {
+	trips := msg.Batch
+	avgDistancesByStation, ok := a.avgDistancesByStation[msg.ClientID]
+	if !ok {
+		avgDistancesByStation = make(map[string]average)
+	}
 	for _, trip := range trips {
 		fields := strings.Split(trip, ",")
 		endStationName := fields[endStationNameIndex]
@@ -71,21 +79,39 @@ func (a *DistanceAverager) updateAverage(trips []string) {
 			continue
 		}
 
-		if d, ok := a.avgDistancesByStation[endStationName]; ok {
+		if d, ok := avgDistancesByStation[endStationName]; ok {
 			newAvg := (d.avg*float64(d.count) + distance) / float64(d.count+1)
 			d.avg = newAvg
 			d.count++
-			a.avgDistancesByStation[endStationName] = d
+			avgDistancesByStation[endStationName] = d
 		} else {
-			a.avgDistancesByStation[endStationName] = average{avg: distance, count: 1}
+			avgDistancesByStation[endStationName] = average{avg: distance, count: 1}
 		}
 	}
+	a.avgDistancesByStation[msg.ClientID] = avgDistancesByStation
 }
 
-func (a *DistanceAverager) sendResults() {
-	for k, v := range a.avgDistancesByStation {
-		result := fmt.Sprintf("%s,%v,%v", k, v.avg, v.count)
-		a.producer.PublishMessage(result, "")
+func (a *DistanceAverager) sendResults(clientID string) {
+	sortedStations := make([]string, 0, len(a.avgDistancesByStation[clientID]))
+	for k := range a.avgDistancesByStation[clientID] {
+		sortedStations = append(sortedStations, k)
 	}
-	a.producer.PublishMessage("eof", "")
+	sort.Strings(sortedStations)
+
+	batch := make([]string, 0, batchSize)
+	batchNumber := 1
+	for i, s := range sortedStations {
+		index := i + 1
+		value := a.avgDistancesByStation[clientID][s]
+		result := fmt.Sprintf("%s,%v,%v", s, value.avg, value.count)
+		batch = append(batch, result)
+		if index%batchSize == 0 || index == len(sortedStations) {
+			msg := message.NewTripsBatchMessage(a.instanceID+"."+strconv.Itoa(batchNumber), clientID, "", batch)
+			a.producer.PublishMessage(msg, "distance_merger")
+			batch = make([]string, 0, batchSize)
+			batchNumber++
+		}
+	}
+	eof := message.NewTripsEOFMessage(clientID)
+	a.producer.PublishMessage(eof, "")
 }

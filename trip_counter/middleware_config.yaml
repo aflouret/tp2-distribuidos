@@ -1,8 +1,10 @@
 consumer:
   exchange_name: trip_counter
   prev_stage_instances_env: PREV_STAGE_INSTANCES
-  route_by_id: true
-  routing_key_env: YEAR
+  filter_duplicate_batches: true
+  messages_to_store:
+    - TE
+    - T
 producer:
   exchange_name: count_merger
   next_stage_instances_env: NEXT_STAGE_INSTANCES

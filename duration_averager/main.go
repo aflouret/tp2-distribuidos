@@ -2,11 +2,14 @@ package main
 
 import (
 	"log"
+	"os"
 	"tp1/common/middleware"
 )
 
 func main() {
-	consumer, err := middleware.NewConsumer("consumer")
+	instanceID := os.Getenv("ID")
+
+	consumer, err := middleware.NewConsumer("consumer", "")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -14,6 +17,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	durationAverager := NewDurationAverager(consumer, producer)
+	durationAverager := NewDurationAverager(instanceID, consumer, producer)
 	durationAverager.Run()
 }

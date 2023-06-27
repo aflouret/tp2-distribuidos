@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"tp1/common/message"
 )
 
 type Producer struct {
@@ -21,6 +22,7 @@ type ProducerConfig struct {
 	exchangeName       string
 	nextStageInstances int
 	routeByID          bool
+	instanceID         string
 }
 
 func newProducerConfig(configID string) (ProducerConfig, error) {
@@ -37,12 +39,13 @@ func newProducerConfig(configID string) (ProducerConfig, error) {
 		nextStageInstances = 1
 	}
 	connectionString := os.Getenv("RABBITMQ_CONNECTION_STRING")
-
+	instanceID := os.Getenv("ID")
 	return ProducerConfig{
 		connectionString:   connectionString,
 		exchangeName:       exchangeName,
 		nextStageInstances: nextStageInstances,
 		routeByID:          routeByID,
+		instanceID:         instanceID,
 	}, nil
 }
 
@@ -75,14 +78,12 @@ func NewProducer(configID string) (*Producer, error) {
 	}, nil
 }
 
-func (p *Producer) PublishMessage(msg string, routingKey string) {
-	if msg == "eof" {
-		routingKey = "eof"
-	} else if p.config.routeByID {
-		msgIDString := strings.Split(msg, ",")[0]
-		msgID, _ := strconv.Atoi(msgIDString)
-		consumerID := msgID % p.config.nextStageInstances
-		routingKey += fmt.Sprintf("%v", consumerID)
+func (p *Producer) PublishMessage(msg message.Message, routingKey string) {
+	if routingKey == "" {
+		routingKey = p.getRoutingKey(msg)
+	}
+	if msg.IsEOF() {
+		msg.ID = p.config.instanceID
 	}
 
 	//fmt.Printf("Routing key: %s, message: %s\n", routingKey, msg)
@@ -94,7 +95,7 @@ func (p *Producer) PublishMessage(msg string, routingKey string) {
 		amqp.Publishing{
 			DeliveryMode: amqp.Transient,
 			ContentType:  "text/plain",
-			Body:         []byte(msg),
+			Body:         []byte(message.Serialize(msg)),
 		},
 	)
 	failOnError(err, "Failed to publish a message")
@@ -103,4 +104,22 @@ func (p *Producer) PublishMessage(msg string, routingKey string) {
 func (p *Producer) Close() {
 	p.ch.Close()
 	p.conn.Close()
+}
+
+func (p *Producer) getRoutingKey(msg message.Message) string {
+	var routingKey string
+	if msg.IsEOF() {
+		routingKey = "eof"
+	} else if p.config.routeByID {
+		var msgID int
+		if strings.Contains(msg.ID, ".") {
+			splitID := strings.Split(msg.ID, ".")
+			msgID, _ = strconv.Atoi(splitID[len(splitID)-1])
+		} else {
+			msgID, _ = strconv.Atoi(msg.ID)
+		}
+		consumerID := msgID % p.config.nextStageInstances
+		routingKey = fmt.Sprintf("%v", consumerID)
+	}
+	return routingKey
 }

@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"tp1/common/message"
 	"tp1/common/middleware"
 )
 
@@ -22,11 +23,11 @@ type average struct {
 type DurationMerger struct {
 	producer           *middleware.Producer
 	consumer           *middleware.Consumer
-	avgDurationsByDate map[string]average
+	avgDurationsByDate map[string]map[string]average
 }
 
 func NewDurationMerger(consumer *middleware.Consumer, producer *middleware.Producer) *DurationMerger {
-	avgDurationsByDate := make(map[string]average)
+	avgDurationsByDate := make(map[string]map[string]average)
 
 	return &DurationMerger{
 		producer:           producer,
@@ -40,43 +41,53 @@ func (m *DurationMerger) Run() {
 	defer m.producer.Close()
 
 	m.consumer.Consume(m.processMessage)
-	m.sendResults()
 }
 
-func (m *DurationMerger) processMessage(msg string) {
-	if msg == "eof" {
+func (m *DurationMerger) processMessage(msg message.Message) {
+	if msg.IsEOF() {
+		m.sendResults(msg.ClientID)
+		delete(m.avgDurationsByDate, msg.ClientID)
 		return
 	}
 
 	m.mergeResults(msg)
 }
 
-func (m *DurationMerger) mergeResults(msg string) error {
-	fields := strings.Split(msg, ",")
-	startDate := fields[startDateIndex]
-	avg, err := strconv.ParseFloat(fields[averageIndex], 64)
-	if err != nil {
-		return err
-	}
-	count, err := strconv.Atoi(fields[countIndex])
-	if err != nil {
-		return err
+func (m *DurationMerger) mergeResults(msg message.Message) error {
+	avgDurationsByDate, ok := m.avgDurationsByDate[msg.ClientID]
+	if !ok {
+		avgDurationsByDate = make(map[string]average)
 	}
 
-	if d, ok := m.avgDurationsByDate[startDate]; ok {
-		newAvg := (d.avg*float64(d.count) + avg*float64(count)) / float64(d.count+count)
-		d.avg = newAvg
-		d.count += count
-		m.avgDurationsByDate[startDate] = d
-	} else {
-		m.avgDurationsByDate[startDate] = average{avg: avg, count: count}
+	results := msg.Batch
+	for _, result := range results {
+		fields := strings.Split(result, ",")
+		startDate := fields[startDateIndex]
+		avg, err := strconv.ParseFloat(fields[averageIndex], 64)
+		if err != nil {
+			return err
+		}
+		count, err := strconv.Atoi(fields[countIndex])
+		if err != nil {
+			return err
+		}
+
+		if d, ok := avgDurationsByDate[startDate]; ok {
+			newAvg := (d.avg*float64(d.count) + avg*float64(count)) / float64(d.count+count)
+			d.avg = newAvg
+			d.count += count
+			avgDurationsByDate[startDate] = d
+		} else {
+			avgDurationsByDate[startDate] = average{avg: avg, count: count}
+		}
 	}
+	m.avgDurationsByDate[msg.ClientID] = avgDurationsByDate
 	return nil
 }
 
-func (m *DurationMerger) sendResults() {
-	sortedDates := make([]string, 0, len(m.avgDurationsByDate))
-	for k := range m.avgDurationsByDate {
+func (m *DurationMerger) sendResults(clientID string) {
+	sortedDates := make([]string, 0, len(m.avgDurationsByDate[clientID]))
+	for k := range m.avgDurationsByDate[clientID] {
 		sortedDates = append(sortedDates, k)
 	}
 	sort.Strings(sortedDates)
@@ -85,10 +96,12 @@ func (m *DurationMerger) sendResults() {
 	result += "start_date,average_duration\n"
 
 	for _, date := range sortedDates {
-		avg := m.avgDurationsByDate[date].avg
-		result += fmt.Sprintf("%s,%v\n", date, avg)
+		avg := m.avgDurationsByDate[clientID][date].avg
+		result += fmt.Sprintf("%s,%.6f\n", date, avg)
 	}
 
-	m.producer.PublishMessage(result, "")
-	m.producer.PublishMessage("eof", "eof")
+	msg := message.NewResultsBatchMessage("duration_merger", clientID, []string{result})
+	m.producer.PublishMessage(msg, msg.ClientID)
+	eof := message.NewResultsEOFMessage(clientID)
+	m.producer.PublishMessage(eof, msg.ClientID)
 }

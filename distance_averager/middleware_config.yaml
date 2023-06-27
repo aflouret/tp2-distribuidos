@@ -1,7 +1,10 @@
 consumer:
   exchange_name: distance_averager
   prev_stage_instances_env: PREV_STAGE_INSTANCES
-  route_by_id: true
+  filter_duplicate_batches: true
+  messages_to_store:
+    - TE
+    - T
 producer:
   exchange_name: distance_merger
   next_stage_instances_env: NEXT_STAGE_INSTANCES

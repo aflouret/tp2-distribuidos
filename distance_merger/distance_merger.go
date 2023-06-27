@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"tp1/common/message"
 	"tp1/common/middleware"
 )
 
@@ -20,20 +21,20 @@ type average struct {
 }
 
 type DistanceMerger struct {
-	producer                  *middleware.Producer
-	consumer                  *middleware.Consumer
-	minimumDistance           float64
-	averageDistancesByStation map[string]average
+	producer              *middleware.Producer
+	consumer              *middleware.Consumer
+	minimumDistance       float64
+	avgDistancesByStation map[string]map[string]average
 }
 
 func NewDistanceMerger(consumer *middleware.Consumer, producer *middleware.Producer, minimumDistance float64) *DistanceMerger {
-	averageDistancesByStation := make(map[string]average)
+	avgDistancesByStation := make(map[string]map[string]average)
 
 	return &DistanceMerger{
-		producer:                  producer,
-		consumer:                  consumer,
-		minimumDistance:           minimumDistance,
-		averageDistancesByStation: averageDistancesByStation,
+		producer:              producer,
+		consumer:              consumer,
+		minimumDistance:       minimumDistance,
+		avgDistancesByStation: avgDistancesByStation,
 	}
 }
 
@@ -42,43 +43,54 @@ func (m *DistanceMerger) Run() {
 	defer m.producer.Close()
 
 	m.consumer.Consume(m.processMessage)
-	m.sendResults()
 }
 
-func (m *DistanceMerger) processMessage(msg string) {
-	if msg == "eof" {
+func (m *DistanceMerger) processMessage(msg message.Message) {
+	if msg.IsEOF() {
+		m.sendResults(msg.ClientID)
+		delete(m.avgDistancesByStation, msg.ClientID)
 		return
 	}
 
 	m.mergeResults(msg)
 }
 
-func (m *DistanceMerger) mergeResults(msg string) error {
-	fields := strings.Split(msg, ",")
-	endStationName := fields[endStationNameIndex]
-	avg, err := strconv.ParseFloat(fields[averageIndex], 64)
-	if err != nil {
-		return err
-	}
-	count, err := strconv.Atoi(fields[countIndex])
-	if err != nil {
-		return err
+func (m *DistanceMerger) mergeResults(msg message.Message) error {
+	avgDistancesByStation, ok := m.avgDistancesByStation[msg.ClientID]
+	if !ok {
+		avgDistancesByStation = make(map[string]average)
 	}
 
-	if d, ok := m.averageDistancesByStation[endStationName]; ok {
-		newAvg := (d.avg*float64(d.count) + avg*float64(count)) / float64(d.count+count)
-		d.avg = newAvg
-		d.count += count
-		m.averageDistancesByStation[endStationName] = d
-	} else {
-		m.averageDistancesByStation[endStationName] = average{avg: avg, count: count}
+	results := msg.Batch
+	for _, result := range results {
+		fields := strings.Split(result, ",")
+		endStationName := fields[endStationNameIndex]
+		avg, err := strconv.ParseFloat(fields[averageIndex], 64)
+		if err != nil {
+			return err
+		}
+		count, err := strconv.Atoi(fields[countIndex])
+		if err != nil {
+			return err
+		}
+
+		if d, ok := avgDistancesByStation[endStationName]; ok {
+			newAvg := (d.avg*float64(d.count) + avg*float64(count)) / float64(d.count+count)
+			d.avg = newAvg
+			d.count += count
+			avgDistancesByStation[endStationName] = d
+		} else {
+			avgDistancesByStation[endStationName] = average{avg: avg, count: count}
+		}
 	}
+
+	m.avgDistancesByStation[msg.ClientID] = avgDistancesByStation
 	return nil
 }
 
-func (m *DistanceMerger) sendResults() {
-	sortedStations := make([]string, 0, len(m.averageDistancesByStation))
-	for k := range m.averageDistancesByStation {
+func (m *DistanceMerger) sendResults(clientID string) {
+	sortedStations := make([]string, 0, len(m.avgDistancesByStation[clientID]))
+	for k := range m.avgDistancesByStation[clientID] {
 		sortedStations = append(sortedStations, k)
 	}
 	sort.Strings(sortedStations)
@@ -87,11 +99,13 @@ func (m *DistanceMerger) sendResults() {
 	result += "end_station_name,average_distance\n"
 
 	for _, s := range sortedStations {
-		avg := m.averageDistancesByStation[s].avg
+		avg := m.avgDistancesByStation[clientID][s].avg
 		if avg > m.minimumDistance {
-			result += fmt.Sprintf("%s,%v\n", s, avg)
+			result += fmt.Sprintf("%s,%.6f\n", s, avg)
 		}
 	}
-	m.producer.PublishMessage(result, "")
-	m.producer.PublishMessage("eof", "eof")
+	msg := message.NewResultsBatchMessage("distance_merger", clientID, []string{result})
+	m.producer.PublishMessage(msg, msg.ClientID)
+	eof := message.NewResultsEOFMessage(clientID)
+	m.producer.PublishMessage(eof, msg.ClientID)
 }

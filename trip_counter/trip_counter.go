@@ -2,33 +2,43 @@ package main
 
 import (
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
+	"tp1/common/message"
 	"tp1/common/middleware"
-	"tp1/common/utils"
 )
 
 const (
-	startStationNameIndex = iota
+	yearIndex = iota
+	startStationNameIndex
 )
+const batchSize = 500
 
 type TripCounter struct {
-	producer       *middleware.Producer
-	consumer       *middleware.Consumer
-	countByStation map[string]int
-	year           string
-	msgCount       int
-	startTime      time.Time
+	instanceID          string
+	producer            *middleware.Producer
+	consumer            *middleware.Consumer
+	year1               string
+	year2               string
+	countByStationYear1 map[string]map[string]int
+	countByStationYear2 map[string]map[string]int
+	msgCount            int
+	startTime           time.Time
 }
 
-func NewTripCounter(year string, consumer *middleware.Consumer, producer *middleware.Producer) *TripCounter {
-	countByStation := make(map[string]int)
-
+func NewTripCounter(instanceID string, year1 string, year2 string, consumer *middleware.Consumer, producer *middleware.Producer) *TripCounter {
+	countByStationYear1 := make(map[string]map[string]int)
+	countByStationYear2 := make(map[string]map[string]int)
 	return &TripCounter{
-		producer:       producer,
-		consumer:       consumer,
-		countByStation: countByStation,
-		year:           year,
+		instanceID:          instanceID,
+		producer:            producer,
+		consumer:            consumer,
+		countByStationYear1: countByStationYear1,
+		countByStationYear2: countByStationYear2,
+		year1:               year1,
+		year2:               year2,
 	}
 }
 
@@ -38,40 +48,98 @@ func (a *TripCounter) Run() {
 	a.startTime = time.Now()
 
 	a.consumer.Consume(a.processMessage)
-	a.sendResults()
 }
 
-func (a *TripCounter) processMessage(msg string) {
-	if msg == "eof" {
+func (a *TripCounter) processMessage(msg message.Message) {
+	if msg.IsEOF() {
+		a.sendResults(msg.ClientID)
+		delete(a.countByStationYear1, msg.ClientID)
+		delete(a.countByStationYear2, msg.ClientID)
 		return
 	}
 
-	id, _, trips := utils.ParseBatch(msg)
-
-	a.updateCount(trips)
+	a.updateCount(msg)
 
 	if a.msgCount%20000 == 0 {
-		fmt.Printf("Time: %s Received batch %v\n", time.Since(a.startTime).String(), id)
+		fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(a.startTime).String(), msg.ID)
 	}
 	a.msgCount++
 }
 
-func (a *TripCounter) updateCount(trips []string) {
+func (a *TripCounter) updateCount(msg message.Message) {
+	trips := msg.Batch
+	countByStationYear1, ok := a.countByStationYear1[msg.ClientID]
+	if !ok {
+		countByStationYear1 = make(map[string]int)
+	}
+	countByStationYear2, ok := a.countByStationYear2[msg.ClientID]
+	if !ok {
+		countByStationYear2 = make(map[string]int)
+	}
+
 	for _, trip := range trips {
 		fields := strings.Split(trip, ",")
+		year := fields[yearIndex]
 		startStationName := fields[startStationNameIndex]
-		if c, ok := a.countByStation[startStationName]; ok {
-			a.countByStation[startStationName] = c + 1
-		} else {
-			a.countByStation[startStationName] = 1
+		if year == a.year1 {
+			if c, ok := countByStationYear1[startStationName]; ok {
+				countByStationYear1[startStationName] = c + 1
+			} else {
+				countByStationYear1[startStationName] = 1
+			}
+		} else if year == a.year2 {
+			if c, ok := countByStationYear2[startStationName]; ok {
+				countByStationYear2[startStationName] = c + 1
+			} else {
+				countByStationYear2[startStationName] = 1
+			}
 		}
 	}
+	a.countByStationYear1[msg.ClientID] = countByStationYear1
+	a.countByStationYear2[msg.ClientID] = countByStationYear2
 }
 
-func (a *TripCounter) sendResults() {
-	for k, v := range a.countByStation {
-		result := fmt.Sprintf("%s,%s,%v", a.year, k, v)
-		a.producer.PublishMessage(result, "")
+func (a *TripCounter) sendResults(clientID string) {
+	sortedStationsYear1 := make([]string, 0, len(a.countByStationYear1[clientID]))
+	for k := range a.countByStationYear1[clientID] {
+		sortedStationsYear1 = append(sortedStationsYear1, k)
 	}
-	a.producer.PublishMessage("eof", "")
+	sort.Strings(sortedStationsYear1)
+
+	sortedStationsYear2 := make([]string, 0, len(a.countByStationYear2[clientID]))
+	for k := range a.countByStationYear2[clientID] {
+		sortedStationsYear2 = append(sortedStationsYear2, k)
+	}
+	sort.Strings(sortedStationsYear2)
+
+	batch := make([]string, 0, batchSize)
+	batchNumber := 1
+	for i, s := range sortedStationsYear1 {
+		index := i + 1
+		count := a.countByStationYear1[clientID][s]
+		result := fmt.Sprintf("%s,%s,%v", a.year1, s, count)
+		batch = append(batch, result)
+		if index%batchSize == 0 || index == len(sortedStationsYear1) {
+			msg := message.NewTripsBatchMessage(a.instanceID+"."+strconv.Itoa(batchNumber), clientID, "", batch)
+			a.producer.PublishMessage(msg, "count_merger")
+			batch = make([]string, 0, batchSize)
+			batchNumber++
+		}
+	}
+
+	for i, s := range sortedStationsYear2 {
+		index := i + 1
+		count := a.countByStationYear2[clientID][s]
+		result := fmt.Sprintf("%s,%s,%v", a.year2, s, count)
+		batch = append(batch, result)
+		if index%batchSize == 0 || index == len(sortedStationsYear2) {
+			msg := message.NewTripsBatchMessage(a.instanceID+"."+strconv.Itoa(batchNumber), clientID, "", batch)
+			a.producer.PublishMessage(msg, "count_merger")
+			batch = make([]string, 0, batchSize)
+			batchNumber++
+		}
+	}
+
+	eof := message.NewTripsEOFMessage(clientID)
+	a.producer.PublishMessage(eof, "")
 }

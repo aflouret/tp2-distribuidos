@@ -2,16 +2,14 @@ package main
 
 import (
 	log "github.com/sirupsen/logrus"
+	"os"
 	"tp1/common/middleware"
 )
 
 func main() {
-	stationsConsumer, err := middleware.NewConsumer("stations_consumer")
-	if err != nil {
-		log.Fatal(err)
-	}
+	instanceID := os.Getenv("ID")
 
-	tripsConsumer, err := middleware.NewConsumer("trips_consumer")
+	consumer, err := middleware.NewConsumer("consumer", "stations")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -26,6 +24,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	stationsJoiner := NewStationsJoiner(tripsConsumer, stationsConsumer, yearFilterProducer, distanceCalculatorProducer)
+	stationsJoiner := NewStationsJoiner(instanceID, consumer, yearFilterProducer, distanceCalculatorProducer)
 	stationsJoiner.Run()
 }

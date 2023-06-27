@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 	"tp1/client/internal/utils"
@@ -24,14 +25,18 @@ type Config struct {
 }
 
 type Client struct {
-	config    Config
-	conn      net.Conn
-	startTime time.Time
+	config          Config
+	conn            net.Conn
+	startTime       time.Time
+	sigtermNotifier chan os.Signal
 }
 
 func NewClient(config Config) *Client {
+	sigtermNotifier := make(chan os.Signal, 1)
+	signal.Notify(sigtermNotifier, syscall.SIGTERM)
 	client := &Client{
-		config: config,
+		config:          config,
+		sigtermNotifier: sigtermNotifier,
 	}
 	return client
 }
@@ -39,10 +44,7 @@ func NewClient(config Config) *Client {
 func (c *Client) connectToServer() error {
 	conn, err := net.Dial("tcp", c.config.ServerAddress)
 	if err != nil {
-		log.Fatalf(
-			"action: connect | result: fail | error: %v",
-			err,
-		)
+
 	}
 	c.conn = conn
 	return nil
@@ -50,7 +52,12 @@ func (c *Client) connectToServer() error {
 
 func (c *Client) StartClient() {
 	c.startTime = time.Now()
-	err := c.sendStationsToServer()
+	err := c.connectToServer()
+	if err != nil {
+		log.Errorf("action: connect | result: fail | error: %v", err)
+		return
+	}
+	err = c.sendStationsToServer()
 	if err != nil {
 		log.Errorf("action: send_stations | result: fail | error: %v", err)
 		return
@@ -70,22 +77,16 @@ func (c *Client) StartClient() {
 		log.Errorf("action: request_results | result: fail | error: %v", err)
 		return
 	}
+	c.conn.Close()
 	log.Infof("action: exit_client | result: success | time: %s", time.Since(c.startTime).String())
 }
 
 func (c *Client) sendStationsToServer() error {
-	sigtermNotifier := make(chan os.Signal, 1)
-	signal.Notify(sigtermNotifier, syscall.SIGTERM)
 
 	for _, city := range cities {
 		file, err := os.Open(fmt.Sprintf("data/%s/stations.csv", city))
 		if err != nil {
 			log.Fatal(err)
-		}
-
-		err = c.connectToServer()
-		if err != nil {
-			return err
 		}
 
 		err = c.notifyBeginStations(city)
@@ -112,13 +113,12 @@ func (c *Client) sendStationsToServer() error {
 				return err
 			}
 			select {
-			case <-sigtermNotifier:
+			case <-c.sigtermNotifier:
 				log.Debugf("action: terminate_client | result: success")
 				return ErrClientTerminated
 			default:
 			}
 		}
-		c.conn.Close()
 		file.Close()
 	}
 
@@ -126,18 +126,10 @@ func (c *Client) sendStationsToServer() error {
 }
 
 func (c *Client) sendWeatherToServer() error {
-	sigtermNotifier := make(chan os.Signal, 1)
-	signal.Notify(sigtermNotifier, syscall.SIGTERM)
-
 	for _, city := range cities {
 		file, err := os.Open(fmt.Sprintf("data/%s/weather.csv", city))
 		if err != nil {
 			log.Fatal(err)
-		}
-
-		err = c.connectToServer()
-		if err != nil {
-			return err
 		}
 
 		err = c.notifyBeginWeather(city)
@@ -164,13 +156,12 @@ func (c *Client) sendWeatherToServer() error {
 				return err
 			}
 			select {
-			case <-sigtermNotifier:
+			case <-c.sigtermNotifier:
 				log.Debugf("action: terminate_client | result: success ")
 				return ErrClientTerminated
 			default:
 			}
 		}
-		c.conn.Close()
 		file.Close()
 	}
 
@@ -178,16 +169,7 @@ func (c *Client) sendWeatherToServer() error {
 }
 
 func (c *Client) sendTripsToServer() error {
-	sigtermNotifier := make(chan os.Signal, 1)
-	signal.Notify(sigtermNotifier, syscall.SIGTERM)
-
-	if err := c.connectToServer(); err != nil {
-		return err
-	}
 	if err := c.notifyEndStaticData(); err != nil {
-		return err
-	}
-	if err := c.conn.Close(); err != nil {
 		return err
 	}
 
@@ -195,11 +177,6 @@ func (c *Client) sendTripsToServer() error {
 		file, err := os.Open(fmt.Sprintf("data/%s/%s", city, c.config.TripsFile))
 		if err != nil {
 			log.Fatal(err)
-		}
-
-		err = c.connectToServer()
-		if err != nil {
-			return err
 		}
 
 		err = c.notifyBeginTrips(city)
@@ -227,13 +204,12 @@ func (c *Client) sendTripsToServer() error {
 			}
 
 			select {
-			case <-sigtermNotifier:
+			case <-c.sigtermNotifier:
 				log.Debugf("action: terminate_client | result: success")
 				return ErrClientTerminated
 			default:
 			}
 		}
-		c.conn.Close()
 		file.Close()
 	}
 
@@ -241,12 +217,7 @@ func (c *Client) sendTripsToServer() error {
 }
 
 func (c *Client) getResults() error {
-	err := c.connectToServer()
-	if err != nil {
-		return err
-	}
-
-	err = c.sendResultsRequest()
+	err := c.sendResultsRequest()
 	if err != nil {
 		return err
 	}
@@ -268,6 +239,8 @@ func (c *Client) getResults() error {
 		return err
 	}
 	fmt.Println(result3)
+
+	logResults([]string{result1, result2, result3})
 	return nil
 }
 
@@ -313,4 +286,28 @@ func (c *Client) getResult() (string, error) {
 
 func (c *Client) sendDataMessage(payload string) error {
 	return utils.SendDataMessage(c.conn, payload)
+}
+
+func logResults(results []string) {
+	for _, r := range results {
+		lines := strings.Split(r, "\n")
+		header := strings.TrimSpace(lines[0])
+		switch header {
+		case "Average duration of trips during >30mm precipitation days:":
+			f, _ := os.OpenFile("recovery_files/result_1.txt", os.O_CREATE|os.O_WRONLY, 0666)
+			res := strings.Join(lines[2:], "\n")
+			f.Write([]byte(res))
+			f.Close()
+		case "Stations that doubled the number of trips between 2016 and 2017:":
+			f, _ := os.OpenFile("recovery_files/result_2.txt", os.O_CREATE|os.O_WRONLY, 0666)
+			res := strings.Join(lines[2:], "\n")
+			f.Write([]byte(res))
+			f.Close()
+		case "Stations with more than 6 km average to arrive at them:":
+			f, _ := os.OpenFile("recovery_files/result_3.txt", os.O_CREATE|os.O_WRONLY, 0666)
+			res := strings.Join(lines[2:], "\n")
+			f.Write([]byte(res))
+			f.Close()
+		}
+	}
 }

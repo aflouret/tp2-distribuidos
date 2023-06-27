@@ -2,17 +2,19 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
+	"tp1/common/message"
 	"tp1/common/middleware"
-	"tp1/common/utils"
 )
 
 const (
 	startDateIndex = iota
 	durationIndex
 )
+const batchSize = 500
 
 type average struct {
 	avg   float64
@@ -20,17 +22,19 @@ type average struct {
 }
 
 type DurationAverager struct {
+	instanceID         string
 	producer           *middleware.Producer
 	consumer           *middleware.Consumer
-	avgDurationsByDate map[string]average
+	avgDurationsByDate map[string]map[string]average
 	msgCount           int
 	startTime          time.Time
 }
 
-func NewDurationAverager(consumer *middleware.Consumer, producer *middleware.Producer) *DurationAverager {
-	avgDurationsByDate := make(map[string]average)
+func NewDurationAverager(instanceID string, consumer *middleware.Consumer, producer *middleware.Producer) *DurationAverager {
+	avgDurationsByDate := make(map[string]map[string]average)
 
 	return &DurationAverager{
+		instanceID:         instanceID,
 		producer:           producer,
 		consumer:           consumer,
 		avgDurationsByDate: avgDurationsByDate,
@@ -43,25 +47,29 @@ func (a *DurationAverager) Run() {
 
 	a.startTime = time.Now()
 	a.consumer.Consume(a.processMessage)
-	a.sendResults()
 }
 
-func (a *DurationAverager) processMessage(msg string) {
-	if msg == "eof" {
+func (a *DurationAverager) processMessage(msg message.Message) {
+	if msg.IsEOF() {
+		a.sendResults(msg.ClientID)
+		delete(a.avgDurationsByDate, msg.ClientID)
 		return
 	}
 
-	id, _, trips := utils.ParseBatch(msg)
-
-	a.updateAverage(trips)
+	a.updateAverage(msg)
 
 	if a.msgCount%20000 == 0 {
-		fmt.Printf("Time: %s Received batch %v\n", time.Since(a.startTime).String(), id)
+		fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(a.startTime).String(), msg.ID)
 	}
 	a.msgCount++
 }
 
-func (a *DurationAverager) updateAverage(trips []string) {
+func (a *DurationAverager) updateAverage(msg message.Message) {
+	trips := msg.Batch
+	avgDurationsByDate, ok := a.avgDurationsByDate[msg.ClientID]
+	if !ok {
+		avgDurationsByDate = make(map[string]average)
+	}
 	for _, trip := range trips {
 		fields := strings.Split(trip, ",")
 		startDate := fields[startDateIndex]
@@ -71,21 +79,39 @@ func (a *DurationAverager) updateAverage(trips []string) {
 			continue
 		}
 
-		if d, ok := a.avgDurationsByDate[startDate]; ok {
+		if d, ok := avgDurationsByDate[startDate]; ok {
 			newAvg := (d.avg*float64(d.count) + duration) / float64(d.count+1)
 			d.avg = newAvg
 			d.count++
-			a.avgDurationsByDate[startDate] = d
+			avgDurationsByDate[startDate] = d
 		} else {
-			a.avgDurationsByDate[startDate] = average{avg: duration, count: 1}
+			avgDurationsByDate[startDate] = average{avg: duration, count: 1}
 		}
 	}
+	a.avgDurationsByDate[msg.ClientID] = avgDurationsByDate
 }
 
-func (a *DurationAverager) sendResults() {
-	for k, v := range a.avgDurationsByDate {
-		result := fmt.Sprintf("%s,%v,%v", k, v.avg, v.count)
-		a.producer.PublishMessage(result, "")
+func (a *DurationAverager) sendResults(clientID string) {
+	sortedDates := make([]string, 0, len(a.avgDurationsByDate[clientID]))
+	for k := range a.avgDurationsByDate[clientID] {
+		sortedDates = append(sortedDates, k)
 	}
-	a.producer.PublishMessage("eof", "")
+	sort.Strings(sortedDates)
+
+	batch := make([]string, 0, batchSize)
+	batchNumber := 1
+	for i, s := range sortedDates {
+		index := i + 1
+		value := a.avgDurationsByDate[clientID][s]
+		result := fmt.Sprintf("%s,%v,%v", s, value.avg, value.count)
+		batch = append(batch, result)
+		if index%batchSize == 0 || index == len(sortedDates) {
+			msg := message.NewTripsBatchMessage(a.instanceID+"."+strconv.Itoa(batchNumber), clientID, "", batch)
+			a.producer.PublishMessage(msg, "duration_merger")
+			batch = make([]string, 0, batchSize)
+			batchNumber++
+		}
+	}
+	eof := message.NewTripsEOFMessage(clientID)
+	a.producer.PublishMessage(eof, "")
 }
