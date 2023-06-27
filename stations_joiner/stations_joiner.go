@@ -77,6 +77,14 @@ func (j *StationsJoiner) processMessage(msg message.Message) {
 func (j *StationsJoiner) processClientEOFMessage(msg message.Message) {
 	j.yearFilterProducer.PublishMessage(msg, "")
 	j.distanceCalculatorProducer.PublishMessage(msg, "")
+	if msg.ClientID == message.AllClients {
+		j.stations = make(map[string]map[string]station)
+		j.pendingTrips = make(map[string]map[string][]string)
+		j.stationsEOFs = make(map[string]bool)
+	} else {
+		delete(j.stations, msg.ClientID)
+		delete(j.stations, msg.ClientID)
+	}
 }
 
 func (j *StationsJoiner) processStationsMessage(msg message.Message) {
@@ -107,7 +115,6 @@ func (j *StationsJoiner) processTripsMessage(msg message.Message) {
 	if msg.IsEOF() {
 		j.yearFilterProducer.PublishMessage(msg, "")
 		j.distanceCalculatorProducer.PublishMessage(msg, "")
-		delete(j.stations, msg.ClientID)
 		return
 	}
 	if j.msgCount%5000 == 0 {

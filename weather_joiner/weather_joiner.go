@@ -66,6 +66,14 @@ func (j *WeatherJoiner) processMessage(msg message.Message) {
 
 func (j *WeatherJoiner) processClientEOFMessage(msg message.Message) {
 	j.producer.PublishMessage(msg, "")
+	if msg.ClientID == message.AllClients {
+		j.precipitationsByDateByCity = make(map[string]map[string]map[string]string)
+		j.pendingTrips = make(map[string]map[string][]string)
+		j.weatherEOFs = make(map[string]bool)
+	} else {
+		delete(j.precipitationsByDateByCity, msg.ClientID)
+		delete(j.weatherEOFs, msg.ClientID)
+	}
 }
 
 func (j *WeatherJoiner) processWeatherMessage(msg message.Message) {
@@ -100,7 +108,6 @@ func (j *WeatherJoiner) processWeatherMessage(msg message.Message) {
 func (j *WeatherJoiner) processTripsMessage(msg message.Message) {
 	if msg.IsEOF() {
 		j.producer.PublishMessage(msg, "")
-		delete(j.precipitationsByDateByCity, msg.ClientID)
 		return
 	}
 	trips := msg.Batch

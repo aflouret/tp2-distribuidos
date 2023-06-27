@@ -50,11 +50,13 @@ func (m *DistanceMerger) processMessage(msg message.Message) {
 		if msg.MsgType == message.ClientEOF {
 			if msg.ClientID == message.AllClients {
 				m.producer.PublishMessage(msg, message.AllClients)
+				m.avgDistancesByStation = make(map[string]map[string]average)
+			} else {
+				delete(m.avgDistancesByStation, msg.ClientID)
 			}
 			return
 		}
 		m.sendResults(msg.ClientID)
-		delete(m.avgDistancesByStation, msg.ClientID)
 		return
 	}
 

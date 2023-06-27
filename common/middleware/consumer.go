@@ -290,6 +290,9 @@ func (c *Consumer) receivedAllEOFs(clientID string, msgType string) bool {
 }
 
 func (c *Consumer) shouldStore(msg message.Message) bool {
+	if msg.MsgType == message.ClientEOF {
+		return true
+	}
 	for _, t := range c.config.messageTypesToStore {
 		if t == msg.MsgType {
 			return true

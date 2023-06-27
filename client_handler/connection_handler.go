@@ -51,53 +51,109 @@ func NewConnectionHandler(conn net.Conn) *ConnectionHandler {
 }
 
 func (h *ConnectionHandler) Close() {
+	clientEOF := message.NewClientEOFMessage(h.id)
+	h.producer.PublishMessage(clientEOF, "")
 	h.producer.Close()
 	h.resultsConsumer.Close()
 	h.conn.Close()
 }
 
-func (h *ConnectionHandler) handleStations(city string) {
-	protocol.Send(h.conn, protocol.Message{Type: protocol.Ack, Payload: ""})
-	startTime := time.Now()
-	h.readBatchesAndSend(city, protocol.EndStations, message.StationsBatch, startTime)
-	fmt.Printf("[CLIENT %s] Time: %s Finished receiving stations from %s\n", h.id, time.Since(startTime).String(), city)
-}
-
-func (h *ConnectionHandler) handleWeather(city string) {
-	protocol.Send(h.conn, protocol.Message{Type: protocol.Ack, Payload: ""})
-	startTime := time.Now()
-	h.readBatchesAndSend(city, protocol.EndWeather, message.WeatherBatch, startTime)
-	fmt.Printf("[CLIENT %s] Time: %s Finished receiving weather from %s\n", h.id, time.Since(startTime).String(), city)
-}
-
-func (h *ConnectionHandler) handleTrips(city string) {
-	protocol.Send(h.conn, protocol.Message{Type: protocol.Ack, Payload: ""})
-	startTime := time.Now()
-	h.readBatchesAndSend(city, protocol.EndTrips, message.TripsBatch, startTime)
-	fmt.Printf("[CLIENT %s] Time: %s Finished receiving trips from %s\n", h.id, time.Since(startTime).String(), city)
-}
-
-func (h *ConnectionHandler) readBatchesAndSend(city string, endMessageType uint8, batchMessageType string, startTime time.Time) {
+func (h *ConnectionHandler) Run() error {
 	for {
 		select {
 		case <-h.sigtermNotifier:
-			return
+			return nil
 		default:
 		}
 		msg, err := protocol.Recv(h.conn)
 		if err != nil {
 			fmt.Printf("[CLIENT %s] Error reading from connection: %v\n", h.id, err)
-			return
+			return err
+		}
+		switch msg.Type {
+		case protocol.BeginStations:
+			err = h.handleStations(msg.Payload)
+		case protocol.BeginWeather:
+			err = h.handleWeather(msg.Payload)
+		case protocol.EndStaticData:
+			err = h.handleEndStaticData()
+		case protocol.BeginTrips:
+			err = h.handleTrips(msg.Payload)
+		case protocol.GetResults:
+			return h.handleResults()
+		}
+		if err != nil {
+			return err
+		}
+	}
+}
+
+func (h *ConnectionHandler) handleStations(city string) error {
+	err := protocol.Send(h.conn, protocol.Message{Type: protocol.Ack, Payload: ""})
+	if err != nil {
+		return err
+	}
+	startTime := time.Now()
+	err = h.readBatchesAndSend(city, protocol.EndStations, message.StationsBatch, startTime)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("[CLIENT %s] Time: %s Finished receiving stations from %s\n", h.id, time.Since(startTime).String(), city)
+	return nil
+}
+
+func (h *ConnectionHandler) handleWeather(city string) error {
+	err := protocol.Send(h.conn, protocol.Message{Type: protocol.Ack, Payload: ""})
+	if err != nil {
+		return err
+	}
+	startTime := time.Now()
+	err = h.readBatchesAndSend(city, protocol.EndWeather, message.WeatherBatch, startTime)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("[CLIENT %s] Time: %s Finished receiving weather from %s\n", h.id, time.Since(startTime).String(), city)
+	return nil
+}
+
+func (h *ConnectionHandler) handleTrips(city string) error {
+	err := protocol.Send(h.conn, protocol.Message{Type: protocol.Ack, Payload: ""})
+	if err != nil {
+		return err
+	}
+	startTime := time.Now()
+	err = h.readBatchesAndSend(city, protocol.EndTrips, message.TripsBatch, startTime)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("[CLIENT %s] Time: %s Finished receiving trips from %s\n", h.id, time.Since(startTime).String(), city)
+	return nil
+}
+
+func (h *ConnectionHandler) readBatchesAndSend(city string, endMessageType uint8, batchMessageType string, startTime time.Time) error {
+	for {
+		select {
+		case <-h.sigtermNotifier:
+			return nil
+		default:
+		}
+		msg, err := protocol.Recv(h.conn)
+		if err != nil {
+			fmt.Printf("[CLIENT %s] Error reading from connection: %v\n", h.id, err)
+			return err
 		}
 		if msg.Type != protocol.Data {
 			if msg.Type != endMessageType {
 				fmt.Printf("[CLIENT %s] Received invalid message: %v, \n", h.id, msg.Type)
-				return
+				return err
 			}
-			protocol.Send(h.conn, protocol.Message{Type: protocol.Ack, Payload: ""})
-			return
+			return protocol.Send(h.conn, protocol.Message{Type: protocol.Ack, Payload: ""})
+
 		}
-		protocol.Send(h.conn, protocol.Message{Type: protocol.Ack, Payload: ""})
+		err = protocol.Send(h.conn, protocol.Message{Type: protocol.Ack, Payload: ""})
+		if err != nil {
+			return err
+		}
 		batchID := strconv.Itoa(h.batchCounter)
 		lines := strings.Split(msg.Payload, ";")
 		batchMsg := message.NewBatchMessage(batchMessageType, batchID, h.id, city, lines)
@@ -109,16 +165,19 @@ func (h *ConnectionHandler) readBatchesAndSend(city string, endMessageType uint8
 	}
 }
 
-func (h *ConnectionHandler) handleEndStaticData() {
+func (h *ConnectionHandler) handleEndStaticData() error {
 	stationsEOF := message.NewStationsEOFMessage(h.id)
 	h.producer.PublishMessage(stationsEOF, "")
 	weatherEOF := message.NewWeatherEOFMessage(h.id)
 	h.producer.PublishMessage(weatherEOF, "")
-	protocol.Send(h.conn, protocol.Message{Type: protocol.Ack, Payload: ""})
+	return protocol.Send(h.conn, protocol.Message{Type: protocol.Ack, Payload: ""})
 }
 
-func (h *ConnectionHandler) handleResults() {
-	protocol.Send(h.conn, protocol.Message{Type: protocol.Ack, Payload: ""})
+func (h *ConnectionHandler) handleResults() error {
+	err := protocol.Send(h.conn, protocol.Message{Type: protocol.Ack, Payload: ""})
+	if err != nil {
+		return err
+	}
 	tripsEOF := message.NewTripsEOFMessage(h.id)
 	h.producer.PublishMessage(tripsEOF, "")
 	h.resultsConsumer.Consume(func(msg message.Message) {
@@ -127,6 +186,5 @@ func (h *ConnectionHandler) handleResults() {
 		}
 		protocol.Send(h.conn, protocol.NewDataMessage(msg.Batch[0]))
 	})
-	clientEOF := message.NewClientEOFMessage(h.id)
-	h.producer.PublishMessage(clientEOF, "")
+	return nil
 }

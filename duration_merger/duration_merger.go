@@ -48,11 +48,13 @@ func (m *DurationMerger) processMessage(msg message.Message) {
 		if msg.MsgType == message.ClientEOF {
 			if msg.ClientID == message.AllClients {
 				m.producer.PublishMessage(msg, message.AllClients)
+				m.avgDurationsByDate = make(map[string]map[string]average)
+			} else {
+				delete(m.avgDurationsByDate, msg.ClientID)
 			}
 			return
 		}
 		m.sendResults(msg.ClientID)
-		delete(m.avgDurationsByDate, msg.ClientID)
 		return
 	}
 

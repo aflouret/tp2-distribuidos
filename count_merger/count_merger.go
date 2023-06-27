@@ -49,12 +49,15 @@ func (m *CountMerger) processMessage(msg message.Message) {
 		if msg.MsgType == message.ClientEOF {
 			if msg.ClientID == message.AllClients {
 				m.producer.PublishMessage(msg, message.AllClients)
+				m.countByStationYear1 = make(map[string]map[string]int)
+				m.countByStationYear2 = make(map[string]map[string]int)
+			} else {
+				delete(m.countByStationYear1, msg.ClientID)
+				delete(m.countByStationYear2, msg.ClientID)
 			}
 			return
 		}
 		m.sendResults(msg.ClientID)
-		delete(m.countByStationYear1, msg.ClientID)
-		delete(m.countByStationYear2, msg.ClientID)
 		return
 	}
 

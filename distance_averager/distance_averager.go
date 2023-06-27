@@ -53,10 +53,14 @@ func (a *DistanceAverager) processMessage(msg message.Message) {
 	if msg.IsEOF() {
 		if msg.MsgType == message.ClientEOF {
 			a.producer.PublishMessage(msg, "")
+			if msg.ClientID == message.AllClients {
+				a.avgDistancesByStation = make(map[string]map[string]average)
+			} else {
+				delete(a.avgDistancesByStation, msg.ClientID)
+			}
 			return
 		}
 		a.sendResults(msg.ClientID)
-		delete(a.avgDistancesByStation, msg.ClientID)
 		return
 	}
 
