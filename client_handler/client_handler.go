@@ -63,7 +63,7 @@ func (h *ConnectionHandler) Close() {
 }
 
 func (h *ClientHandler) Run() {
-	listener, err := net.Listen("tcp", ":12345")
+	listener, err := net.Listen("tcp", ":12380")
 	if err != nil {
 		panic(err)
 	}

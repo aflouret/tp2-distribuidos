@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"tp1/common/checkreplier"
 	"tp1/common/middleware"
 )
 
@@ -30,6 +31,15 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	replier := checkreplier.NewReplier()
+	err = replier.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	countMerger := NewCountMerger(consumer, producer, year1, year2)
 	countMerger.Run()
+
+	replier.Stop()
 }

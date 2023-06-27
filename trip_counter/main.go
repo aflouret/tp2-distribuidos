@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"tp1/common/checkreplier"
 	"tp1/common/middleware"
 )
 
@@ -22,6 +23,11 @@ func main() {
 	year2 := os.Getenv("YEAR_2")
 	if year2 == "" {
 		year2 = defaultYear2
+	}
+
+	replier := checkreplier.NewReplier()
+	if err := replier.Run(); err != nil {
+		log.Fatal(err)
 	}
 
 	consumer, err := middleware.NewConsumer("consumer", "")

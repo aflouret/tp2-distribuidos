@@ -50,7 +50,7 @@ class LeaderGroup:
         self.running = True
         self.leader = -1
         self.iddle_stage = Timer()
-        self.id_msg = 0qq
+        self.id_msg = 0
 
         for name in hosts:
             self.group[name] = {"addr": name, "last_msg_id": 0, "alive": False, "coordinated": False}
