@@ -44,7 +44,7 @@ func NewClient(config Config) *Client {
 func (c *Client) connectToServer() error {
 	conn, err := net.Dial("tcp", c.config.ServerAddress)
 	if err != nil {
-
+		return err
 	}
 	c.conn = conn
 	return nil

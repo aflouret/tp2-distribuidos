@@ -45,6 +45,12 @@ func (m *DurationMerger) Run() {
 
 func (m *DurationMerger) processMessage(msg message.Message) {
 	if msg.IsEOF() {
+		if msg.MsgType == message.ClientEOF {
+			if msg.ClientID == message.AllClients {
+				m.producer.PublishMessage(msg, message.AllClients)
+			}
+			return
+		}
 		m.sendResults(msg.ClientID)
 		delete(m.avgDurationsByDate, msg.ClientID)
 		return

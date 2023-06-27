@@ -11,7 +11,10 @@ const (
 	StationsEOF   = "SE"
 	WeatherEOF    = "WE"
 	ResultsEOF    = "RE"
+	ClientEOF     = "CE"
 )
+
+const AllClients = "all"
 
 type Message struct {
 	MsgType  string
@@ -78,6 +81,13 @@ func NewResultsEOFMessage(clientID string) Message {
 	}
 }
 
+func NewClientEOFMessage(clientID string) Message {
+	return Message{
+		MsgType:  ClientEOF,
+		ClientID: clientID,
+	}
+}
+
 func Deserialize(batch string) Message {
 	batchFields := strings.Split(batch, "%")
 	batchType := strings.Split(batchFields[0], ",")[0]
@@ -104,5 +114,5 @@ func Serialize(m Message) string {
 }
 
 func (m Message) IsEOF() bool {
-	return m.MsgType == TripsEOF || m.MsgType == WeatherEOF || m.MsgType == StationsEOF || m.MsgType == ResultsEOF
+	return m.MsgType == TripsEOF || m.MsgType == WeatherEOF || m.MsgType == StationsEOF || m.MsgType == ResultsEOF || m.MsgType == ClientEOF
 }

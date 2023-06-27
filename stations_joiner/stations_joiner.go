@@ -69,7 +69,14 @@ func (j *StationsJoiner) processMessage(msg message.Message) {
 		j.processStationsMessage(msg)
 	case message.TripsBatch, message.TripsEOF:
 		j.processTripsMessage(msg)
+	case message.ClientEOF:
+		j.processClientEOFMessage(msg)
 	}
+}
+
+func (j *StationsJoiner) processClientEOFMessage(msg message.Message) {
+	j.yearFilterProducer.PublishMessage(msg, "")
+	j.distanceCalculatorProducer.PublishMessage(msg, "")
 }
 
 func (j *StationsJoiner) processStationsMessage(msg message.Message) {

@@ -16,6 +16,7 @@ const (
 
 type StorageManager struct {
 	files map[string]*os.File
+	dir   string
 }
 
 func NewStorageManager(dir string) (*StorageManager, error) {
@@ -25,6 +26,7 @@ func NewStorageManager(dir string) (*StorageManager, error) {
 	}
 	return &StorageManager{
 		files: files,
+		dir:   dir,
 	}, nil
 }
 
@@ -40,7 +42,6 @@ func (m *StorageManager) Store(msg message.Message) error {
 	transaction += "COMMIT\n"
 
 	fileName := msg.ClientID
-
 	f, ok := m.files[msg.ClientID]
 	if !ok {
 
@@ -60,6 +61,21 @@ func (m *StorageManager) Store(msg message.Message) error {
 func (m *StorageManager) Close() {
 	for _, f := range m.files {
 		_ = f.Close()
+	}
+}
+
+func (m *StorageManager) Delete(clientID string) {
+	if clientID == message.AllClients {
+		for _, f := range m.files {
+			_ = f.Close()
+		}
+		os.RemoveAll(m.dir)
+		m.files = make(map[string]*os.File)
+	} else {
+		f := m.files[clientID]
+		f.Close()
+		delete(m.files, clientID)
+		os.Remove(m.dir + "/" + clientID)
 	}
 }
 

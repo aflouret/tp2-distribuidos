@@ -51,6 +51,10 @@ func (a *DurationAverager) Run() {
 
 func (a *DurationAverager) processMessage(msg message.Message) {
 	if msg.IsEOF() {
+		if msg.MsgType == message.ClientEOF {
+			a.producer.PublishMessage(msg, "")
+			return
+		}
 		a.sendResults(msg.ClientID)
 		delete(a.avgDurationsByDate, msg.ClientID)
 		return

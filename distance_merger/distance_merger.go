@@ -47,6 +47,12 @@ func (m *DistanceMerger) Run() {
 
 func (m *DistanceMerger) processMessage(msg message.Message) {
 	if msg.IsEOF() {
+		if msg.MsgType == message.ClientEOF {
+			if msg.ClientID == message.AllClients {
+				m.producer.PublishMessage(msg, message.AllClients)
+			}
+			return
+		}
 		m.sendResults(msg.ClientID)
 		delete(m.avgDistancesByStation, msg.ClientID)
 		return

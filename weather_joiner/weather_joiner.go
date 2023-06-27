@@ -59,7 +59,13 @@ func (j *WeatherJoiner) processMessage(msg message.Message) {
 		j.processWeatherMessage(msg)
 	case message.TripsBatch, message.TripsEOF:
 		j.processTripsMessage(msg)
+	case message.ClientEOF:
+		j.processClientEOFMessage(msg)
 	}
+}
+
+func (j *WeatherJoiner) processClientEOFMessage(msg message.Message) {
+	j.producer.PublishMessage(msg, "")
 }
 
 func (j *WeatherJoiner) processWeatherMessage(msg message.Message) {

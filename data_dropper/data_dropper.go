@@ -54,7 +54,13 @@ func (d *DataDropper) processMessage(msg message.Message) {
 		d.processWeatherMessage(msg)
 	case message.TripsBatch, message.TripsEOF:
 		d.processTripsMessage(msg)
+	case message.ClientEOF:
+		d.processClientEOFMessage(msg)
 	}
+}
+func (d *DataDropper) processClientEOFMessage(msg message.Message) {
+	d.stationsJoinerProducer.PublishMessage(msg, "")
+	d.weatherJoinerProducer.PublishMessage(msg, "")
 }
 func (d *DataDropper) processWeatherMessage(msg message.Message) {
 	d.weatherJoinerProducer.PublishMessage(msg, "weather")

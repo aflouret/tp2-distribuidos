@@ -5,6 +5,7 @@ config = ConfigParser(os.environ)
 config.read("config.ini")
 
 rabbitmq_connection_string = config["DEFAULT"]["RABBITMQ_CONNECTION_STRING"]
+client_handler_address = config["DEFAULT"]["CLIENT_HANDLER_ADDRESS"]
 
 client_handler_instances = 1
 client_instances = int(config["DEFAULT"]["CLIENT_INSTANCES"])
@@ -332,6 +333,7 @@ file_content = f'''services:
     container_name: client_handler
     environment:
       - ID=client_handler
+      - ADDRESS={client_handler_address}
       - MERGER_INSTANCES={merger_instances}
       - DATA_DROPPER_INSTANCES={data_dropper_instances}
       - WEATHER_JOINER_INSTANCES={weather_joiner_instances}
