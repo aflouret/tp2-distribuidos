@@ -315,6 +315,9 @@ health_checker_targets.extend(health_checker_peers.split(","))
 health_checker_targets.extend(non_scaled_nodes)
 health_checker_targets = ",".join(health_checker_targets)
 
+with open("crazy_monkey/targets.csv", "w") as file:
+    file.write(health_checker_targets)
+
 for i in range(0, health_checker_instances):
     health_checker_string = health_checker_string + f'''
   health_checker_{i}:

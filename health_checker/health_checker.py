@@ -71,7 +71,7 @@ class HealthChecker:
 
     def do_ping(self, s, hostname):
 
-        log.info(f"HealthChecker | Pinging to {hostname}")
+        log.debug(f"HealthChecker | Pinging to {hostname}")
 
         success = False
 
