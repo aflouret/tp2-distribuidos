@@ -37,44 +37,61 @@ func NewDataDropper(consumer *middleware.Consumer, stationsJoinerProducer *middl
 	}
 }
 
-func (d *DataDropper) Run() {
-	defer d.consumer.Close()
-	defer d.stationsJoinerProducer.Close()
-	defer d.weatherJoinerProducer.Close()
-
-	d.consumer.Consume(d.processMessage)
+func (d *DataDropper) Run() error {
+	err := d.consumer.Consume(d.processMessage)
+	if err != nil {
+		return err
+	}
+	err = d.weatherJoinerProducer.Close()
+	if err != nil {
+		return err
+	}
+	err = d.stationsJoinerProducer.Close()
+	if err != nil {
+		return err
+	}
+	err = d.consumer.Close()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (d *DataDropper) processMessage(msg message.Message) {
-
+func (d *DataDropper) processMessage(msg message.Message) error {
 	switch msg.MsgType {
 	case message.StationsBatch, message.StationsEOF:
-		d.processStationsMessage(msg)
+		return d.processStationsMessage(msg)
 	case message.WeatherBatch, message.WeatherEOF:
-		d.processWeatherMessage(msg)
+		return d.processWeatherMessage(msg)
 	case message.TripsBatch, message.TripsEOF:
-		d.processTripsMessage(msg)
+		return d.processTripsMessage(msg)
 	case message.ClientEOF:
-		d.processClientEOFMessage(msg)
+		return d.processClientEOFMessage(msg)
 	}
+	return fmt.Errorf("invalid message %s", msg)
 }
-func (d *DataDropper) processClientEOFMessage(msg message.Message) {
-	d.stationsJoinerProducer.PublishMessage(msg, "")
-	d.weatherJoinerProducer.PublishMessage(msg, "")
+func (d *DataDropper) processClientEOFMessage(msg message.Message) error {
+	err := d.stationsJoinerProducer.PublishMessage(msg, "")
+	if err != nil {
+		return err
+	}
+	return d.weatherJoinerProducer.PublishMessage(msg, "")
 }
-func (d *DataDropper) processWeatherMessage(msg message.Message) {
-	d.weatherJoinerProducer.PublishMessage(msg, "weather")
+func (d *DataDropper) processWeatherMessage(msg message.Message) error {
+	return d.weatherJoinerProducer.PublishMessage(msg, "weather")
 }
 
-func (d *DataDropper) processStationsMessage(msg message.Message) {
-	d.stationsJoinerProducer.PublishMessage(msg, "stations")
+func (d *DataDropper) processStationsMessage(msg message.Message) error {
+	return d.stationsJoinerProducer.PublishMessage(msg, "stations")
 }
 
-func (d *DataDropper) processTripsMessage(msg message.Message) {
+func (d *DataDropper) processTripsMessage(msg message.Message) error {
 	if msg.IsEOF() {
-		d.stationsJoinerProducer.PublishMessage(msg, "")
-		d.weatherJoinerProducer.PublishMessage(msg, "")
-		return
+		err := d.stationsJoinerProducer.PublishMessage(msg, "")
+		if err != nil {
+			return err
+		}
+		return d.weatherJoinerProducer.PublishMessage(msg, "")
 	}
 
 	if d.msgCount%5000 == 0 {
@@ -84,12 +101,18 @@ func (d *DataDropper) processTripsMessage(msg message.Message) {
 	weatherJoinerTrips, stationsJoinerTrips := d.dropData(msg)
 
 	weatherJoinerMessage := message.NewTripsBatchMessage(msg.ID, msg.ClientID, msg.City, weatherJoinerTrips)
-	d.weatherJoinerProducer.PublishMessage(weatherJoinerMessage, "")
+	err := d.weatherJoinerProducer.PublishMessage(weatherJoinerMessage, "")
+	if err != nil {
+		return err
+	}
 
 	stationsJoinerMessage := message.NewTripsBatchMessage(msg.ID, msg.ClientID, msg.City, stationsJoinerTrips)
-	d.stationsJoinerProducer.PublishMessage(stationsJoinerMessage, "")
-
+	err = d.stationsJoinerProducer.PublishMessage(stationsJoinerMessage, "")
+	if err != nil {
+		return err
+	}
 	d.msgCount++
+	return nil
 }
 
 func (d *DataDropper) dropData(msg message.Message) ([]string, []string) {

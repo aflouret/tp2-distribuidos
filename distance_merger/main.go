@@ -15,12 +15,15 @@ func main() {
 
 	consumer, err := middleware.NewConsumer("consumer", "")
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	producer, err := middleware.NewProducer("producer")
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	distanceMerger := NewDistanceMerger(consumer, producer, minimumDistance)
-	distanceMerger.Run()
+	err = distanceMerger.Run()
+	if err != nil {
+		log.Panic(err)
+	}
 }

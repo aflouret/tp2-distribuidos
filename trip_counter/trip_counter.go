@@ -42,18 +42,30 @@ func NewTripCounter(instanceID string, year1 string, year2 string, consumer *mid
 	}
 }
 
-func (c *TripCounter) Run() {
-	defer c.consumer.Close()
-	defer c.producer.Close()
+func (c *TripCounter) Run() error {
 	c.startTime = time.Now()
-
-	c.consumer.Consume(c.processMessage)
+	err := c.consumer.Consume(c.processMessage)
+	if err != nil {
+		return err
+	}
+	err = c.consumer.Close()
+	if err != nil {
+		return err
+	}
+	err = c.producer.Close()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (c *TripCounter) processMessage(msg message.Message) {
+func (c *TripCounter) processMessage(msg message.Message) error {
 	if msg.IsEOF() {
 		if msg.MsgType == message.ClientEOF {
-			c.producer.PublishMessage(msg, "")
+			err := c.producer.PublishMessage(msg, "")
+			if err != nil {
+				return err
+			}
 			if msg.ClientID == message.AllClients {
 				c.countByStationYear1 = make(map[string]map[string]int)
 				c.countByStationYear2 = make(map[string]map[string]int)
@@ -61,10 +73,9 @@ func (c *TripCounter) processMessage(msg message.Message) {
 				delete(c.countByStationYear1, msg.ClientID)
 				delete(c.countByStationYear2, msg.ClientID)
 			}
-			return
+			return nil
 		}
-		c.sendResults(msg.ClientID)
-		return
+		return c.sendResults(msg.ClientID)
 	}
 
 	c.updateCount(msg)
@@ -73,6 +84,7 @@ func (c *TripCounter) processMessage(msg message.Message) {
 		fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(c.startTime).String(), msg.ID)
 	}
 	c.msgCount++
+	return nil
 }
 
 func (c *TripCounter) updateCount(msg message.Message) {
@@ -108,7 +120,7 @@ func (c *TripCounter) updateCount(msg message.Message) {
 	c.countByStationYear2[msg.ClientID] = countByStationYear2
 }
 
-func (c *TripCounter) sendResults(clientID string) {
+func (c *TripCounter) sendResults(clientID string) error {
 	sortedStationsYear1 := make([]string, 0, len(c.countByStationYear1[clientID]))
 	for k := range c.countByStationYear1[clientID] {
 		sortedStationsYear1 = append(sortedStationsYear1, k)
@@ -130,7 +142,10 @@ func (c *TripCounter) sendResults(clientID string) {
 		batch = append(batch, result)
 		if index%batchSize == 0 || index == len(sortedStationsYear1) {
 			msg := message.NewTripsBatchMessage(c.instanceID+"."+strconv.Itoa(batchNumber), clientID, "", batch)
-			c.producer.PublishMessage(msg, "count_merger")
+			err := c.producer.PublishMessage(msg, "count_merger")
+			if err != nil {
+				return err
+			}
 			batch = make([]string, 0, batchSize)
 			batchNumber++
 		}
@@ -143,12 +158,15 @@ func (c *TripCounter) sendResults(clientID string) {
 		batch = append(batch, result)
 		if index%batchSize == 0 || index == len(sortedStationsYear2) {
 			msg := message.NewTripsBatchMessage(c.instanceID+"."+strconv.Itoa(batchNumber), clientID, "", batch)
-			c.producer.PublishMessage(msg, "count_merger")
+			err := c.producer.PublishMessage(msg, "count_merger")
+			if err != nil {
+				return err
+			}
 			batch = make([]string, 0, batchSize)
 			batchNumber++
 		}
 	}
 
 	eof := message.NewTripsEOFMessage(clientID)
-	c.producer.PublishMessage(eof, "")
+	return c.producer.PublishMessage(eof, "")
 }

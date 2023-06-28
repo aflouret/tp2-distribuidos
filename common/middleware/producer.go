@@ -63,7 +63,7 @@ func NewProducer(configID string) (*Producer, error) {
 	err = ch.ExchangeDeclare(
 		config.exchangeName, // name
 		"direct",            // type
-		false,               // durable
+		true,                // durable
 		false,               // auto-deleted
 		false,               // internal
 		false,               // no-wait
@@ -78,48 +78,69 @@ func NewProducer(configID string) (*Producer, error) {
 	}, nil
 }
 
-func (p *Producer) PublishMessage(msg message.Message, routingKey string) {
+func (p *Producer) PublishMessage(msg message.Message, routingKey string) error {
+	var err error
 	if routingKey == "" {
-		routingKey = p.getRoutingKey(msg)
+		routingKey, err = p.getRoutingKey(msg)
+		if err != nil {
+			return fmt.Errorf("error getting routing key for message %v: %w", msg, err)
+		}
 	}
 	if msg.IsEOF() {
 		msg.ID = p.config.instanceID
 	}
 
 	//fmt.Printf("Routing key: %s, message: %s\n", routingKey, msg)
-	err := p.ch.PublishWithContext(context.TODO(),
+	err = p.ch.PublishWithContext(context.TODO(),
 		p.config.exchangeName,
 		routingKey,
 		false,
 		false,
 		amqp.Publishing{
-			DeliveryMode: amqp.Transient,
+			DeliveryMode: amqp.Persistent,
 			ContentType:  "text/plain",
 			Body:         []byte(message.Serialize(msg)),
 		},
 	)
-	failOnError(err, "Failed to publish a message")
+	if err != nil {
+		return fmt.Errorf("error publishing message %v: %w", msg, err)
+	}
+	return nil
 }
 
-func (p *Producer) Close() {
-	p.ch.Close()
-	p.conn.Close()
+func (p *Producer) Close() error {
+	err := p.ch.Close()
+	if err != nil {
+		return err
+	}
+	err = p.conn.Close()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (p *Producer) getRoutingKey(msg message.Message) string {
+func (p *Producer) getRoutingKey(msg message.Message) (string, error) {
 	var routingKey string
 	if msg.IsEOF() {
 		routingKey = "eof"
 	} else if p.config.routeByID {
 		var msgID int
+		var err error
 		if strings.Contains(msg.ID, ".") {
 			splitID := strings.Split(msg.ID, ".")
-			msgID, _ = strconv.Atoi(splitID[len(splitID)-1])
+			msgID, err = strconv.Atoi(splitID[len(splitID)-1])
+			if err != nil {
+				return "", err
+			}
 		} else {
-			msgID, _ = strconv.Atoi(msg.ID)
+			msgID, err = strconv.Atoi(msg.ID)
+			if err != nil {
+				return "", err
+			}
 		}
 		consumerID := msgID % p.config.nextStageInstances
 		routingKey = fmt.Sprintf("%v", consumerID)
 	}
-	return routingKey
+	return routingKey, nil
 }

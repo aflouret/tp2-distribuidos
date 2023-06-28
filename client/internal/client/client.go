@@ -77,7 +77,11 @@ func (c *Client) StartClient() {
 		log.Errorf("action: request_results | result: fail | error: %v", err)
 		return
 	}
-	c.conn.Close()
+	err = c.conn.Close()
+	if err != nil {
+		log.Errorf("action: request_results | result: fail | error: %v", err)
+		return
+	}
 	log.Infof("action: exit_client | result: success | time: %s", time.Since(c.startTime).String())
 }
 
@@ -86,7 +90,7 @@ func (c *Client) sendStationsToServer() error {
 	for _, city := range cities {
 		file, err := os.Open(fmt.Sprintf("data/%s/stations.csv", city))
 		if err != nil {
-			log.Fatal(err)
+			log.Panic(err)
 		}
 
 		err = c.notifyBeginStations(city)
@@ -119,7 +123,10 @@ func (c *Client) sendStationsToServer() error {
 			default:
 			}
 		}
-		file.Close()
+		err = file.Close()
+		if err != nil {
+			log.Panic(err)
+		}
 	}
 
 	return nil
@@ -129,7 +136,7 @@ func (c *Client) sendWeatherToServer() error {
 	for _, city := range cities {
 		file, err := os.Open(fmt.Sprintf("data/%s/weather.csv", city))
 		if err != nil {
-			log.Fatal(err)
+			log.Panic(err)
 		}
 
 		err = c.notifyBeginWeather(city)
@@ -162,7 +169,10 @@ func (c *Client) sendWeatherToServer() error {
 			default:
 			}
 		}
-		file.Close()
+		err = file.Close()
+		if err != nil {
+			log.Panic(err)
+		}
 	}
 
 	return nil
@@ -176,7 +186,7 @@ func (c *Client) sendTripsToServer() error {
 	for _, city := range cities {
 		file, err := os.Open(fmt.Sprintf("data/%s/%s", city, c.config.TripsFile))
 		if err != nil {
-			log.Fatal(err)
+			log.Panic(err)
 		}
 
 		err = c.notifyBeginTrips(city)
@@ -210,7 +220,10 @@ func (c *Client) sendTripsToServer() error {
 			default:
 			}
 		}
-		file.Close()
+		err = file.Close()
+		if err != nil {
+			log.Panic(err)
+		}
 	}
 
 	return nil
