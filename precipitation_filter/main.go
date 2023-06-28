@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"tp1/common/checkreplier"
 	"tp1/common/middleware"
 )
 
@@ -11,6 +12,11 @@ func main() {
 	minimumPrecipitations, err := strconv.ParseFloat(os.Getenv("MIN_PRECIPITATIONS"), 64)
 	if err != nil {
 		minimumPrecipitations = 30
+	}
+
+	replier := checkreplier.NewReplier()
+	if err := replier.Run(); err != nil {
+		log.Fatal(err)
 	}
 
 	consumer, err := middleware.NewConsumer("consumer", "")
@@ -23,4 +29,6 @@ func main() {
 	}
 	precipitationFilter := NewPrecipitationFilter(consumer, producer, minimumPrecipitations)
 	precipitationFilter.Run()
+
+	replier.Stop()
 }

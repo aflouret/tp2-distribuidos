@@ -30,6 +30,9 @@ BuildTp(){
       docker build -f ./distance_averager/Dockerfile -t "distance_averager:latest" .
       docker build -f ./trip_counter/Dockerfile -t "trip_counter:latest" .
 
+      # Chcker
+      docker build -f ./health_checker/Dockerfile -t "health_checker:latest" .
+
   fi
 }
 

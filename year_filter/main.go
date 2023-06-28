@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"tp1/common/checkreplier"
 	"tp1/common/middleware"
 )
 
@@ -17,6 +18,11 @@ func main() {
 		year2 = "2017"
 	}
 
+	replier := checkreplier.NewReplier()
+	if err := replier.Run(); err != nil {
+		log.Fatal(err)
+	}
+
 	consumer, err := middleware.NewConsumer("consumer", "")
 	if err != nil {
 		log.Fatal(err)
@@ -27,4 +33,6 @@ func main() {
 	}
 	yearFilter := NewYearFilter(producer, consumer, year1, year2)
 	yearFilter.Run()
+
+	replier.Stop()
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"tp1/common/checkreplier"
 	"tp1/common/middleware"
 )
 
@@ -19,6 +20,14 @@ func main() {
 		log.Fatal(err)
 	}
 
+	replier := checkreplier.NewReplier()
+	err = replier.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	dataDropper := NewDataDropper(consumer, stationsJoinerProducer, weatherJoinerProducer)
 	dataDropper.Run()
+
+	replier.Stop()
 }
