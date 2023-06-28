@@ -185,11 +185,14 @@ func (c *Consumer) Consume(processMessage func(message.Message) error) error {
 		err := recovery.Recover("recovery_files", func(msg message.Message) error {
 			var err error
 			if msg.IsEOF() {
-				_, err = c.processEOF(msg, processMessage)
+				_, err = c.processEOF(msg, processMessage, true)
 			} else {
 				_, err = c.processBatchMessage(msg, processMessage)
 			}
-			return fmt.Errorf("error processing message %v, %w", msg, err)
+			if err != nil {
+				return fmt.Errorf("error processing message %v, %w", msg, err)
+			}
+			return nil
 		})
 		if err != nil {
 			return fmt.Errorf("error recovering: %w", err)
@@ -211,7 +214,7 @@ func (c *Consumer) Consume(processMessage func(message.Message) error) error {
 			// Process message and check for duplicates
 			var isDuplicateMessage bool
 			if msg.IsEOF() {
-				isDuplicateMessage, err = c.processEOF(msg, processMessage)
+				isDuplicateMessage, err = c.processEOF(msg, processMessage, false)
 			} else {
 				isDuplicateMessage, err = c.processBatchMessage(msg, processMessage)
 			}
@@ -240,10 +243,10 @@ func (c *Consumer) Consume(processMessage func(message.Message) error) error {
 
 			if msg.MsgType == message.ClientEOF && c.receivedAllEOFs(msg.ClientID, msg.MsgType) {
 				// Delete files and maps allocated for client
-				err := storageManager.Delete(msg.ClientID)
-				if err != nil {
-					return fmt.Errorf("error deleting resources: %w", err)
-				}
+				//err := storageManager.Delete(msg.ClientID)
+				//if err != nil {
+				//	return fmt.Errorf("error deleting resources: %w", err)
+				//}
 				c.deleteResources(msg.ClientID)
 			}
 		}
@@ -262,7 +265,7 @@ func (c *Consumer) Close() error {
 	return nil
 }
 
-func (c *Consumer) processEOF(msg message.Message, processMessage func(message.Message) error) (isDuplicateMessage bool, err error) {
+func (c *Consumer) processEOF(msg message.Message, processMessage func(message.Message) error, recovery bool) (isDuplicateMessage bool, err error) {
 	// Allocate map for client and type if it does not exist
 	if _, ok := c.eofsReceived[msg.ClientID]; !ok {
 		c.eofsReceived[msg.ClientID] = make(map[string]map[string]bool)
@@ -282,7 +285,7 @@ func (c *Consumer) processEOF(msg message.Message, processMessage func(message.M
 	fmt.Printf("[Client %s] Received %s %v of %v \n", msg.ClientID, msg.MsgType, len(c.eofsReceived[msg.ClientID][msg.MsgType]), c.config.previousStageInstances)
 
 	// If it is the last EOF then process it
-	if c.receivedAllEOFs(msg.ClientID, msg.MsgType) {
+	if c.receivedAllEOFs(msg.ClientID, msg.MsgType) && (!recovery || msg.MsgType == message.StationsEOF || msg.MsgType == message.WeatherEOF) {
 		fmt.Printf("[Client %s] Received all %s eofs\n", msg.ClientID, msg.MsgType)
 		err = processMessage(msg)
 		if err != nil {
