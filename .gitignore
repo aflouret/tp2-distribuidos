@@ -5,3 +5,5 @@ vendor/
 
 **.DS_store
 **/__pycache__/
+
+/crazy_monkey/targets.csv

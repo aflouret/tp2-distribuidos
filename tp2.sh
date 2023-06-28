@@ -53,6 +53,13 @@ RunTp(){
         # Show logs
         docker compose -f compose.yaml logs -f
 
+    elif [ "$1" == "monkey" ]; then
+
+      # Temporary container to test the failure prevention
+      docker run --rm --mount type=bind,src="$(PWD)/crazy_monkey/",dst="/app/"\
+                      --mount type=bind,src="/var/run/docker.sock",dst="/var/run/docker.sock"\
+                      -i -t --entrypoint python3 "health_checker:latest" main.py
+
     else
 
         # Docker Compose Up
