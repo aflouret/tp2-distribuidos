@@ -34,11 +34,11 @@ func NewConnectionHandler(conn net.Conn) *ConnectionHandler {
 
 	resultsConsumer, err := middleware.NewConsumer("consumer", id)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	producer, err := middleware.NewProducer("producer")
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	return &ConnectionHandler{
@@ -50,12 +50,21 @@ func NewConnectionHandler(conn net.Conn) *ConnectionHandler {
 	}
 }
 
-func (h *ConnectionHandler) Close() {
+func (h *ConnectionHandler) Close() error {
 	clientEOF := message.NewClientEOFMessage(h.id)
-	h.producer.PublishMessage(clientEOF, "")
-	h.producer.Close()
-	h.resultsConsumer.Close()
-	h.conn.Close()
+	err := h.producer.PublishMessage(clientEOF, "")
+	if err != nil {
+		return err
+	}
+	err = h.producer.Close()
+	if err != nil {
+		return err
+	}
+	err = h.resultsConsumer.Close()
+	if err != nil {
+		return err
+	}
+	return h.conn.Close()
 }
 
 func (h *ConnectionHandler) Run() error {
@@ -157,7 +166,10 @@ func (h *ConnectionHandler) readBatchesAndSend(city string, endMessageType uint8
 		batchID := strconv.Itoa(h.batchCounter)
 		lines := strings.Split(msg.Payload, ";")
 		batchMsg := message.NewBatchMessage(batchMessageType, batchID, h.id, city, lines)
-		h.producer.PublishMessage(batchMsg, "")
+		err = h.producer.PublishMessage(batchMsg, "")
+		if err != nil {
+			return err
+		}
 		if h.batchCounter%10000 == 0 {
 			fmt.Printf("[CLIENT %s] Time: %s Received batch %s\n", h.id, time.Since(startTime).String(), batchID)
 		}
@@ -167,9 +179,15 @@ func (h *ConnectionHandler) readBatchesAndSend(city string, endMessageType uint8
 
 func (h *ConnectionHandler) handleEndStaticData() error {
 	stationsEOF := message.NewStationsEOFMessage(h.id)
-	h.producer.PublishMessage(stationsEOF, "")
+	err := h.producer.PublishMessage(stationsEOF, "")
+	if err != nil {
+		return err
+	}
 	weatherEOF := message.NewWeatherEOFMessage(h.id)
-	h.producer.PublishMessage(weatherEOF, "")
+	err = h.producer.PublishMessage(weatherEOF, "")
+	if err != nil {
+		return err
+	}
 	return protocol.Send(h.conn, protocol.Message{Type: protocol.Ack, Payload: ""})
 }
 
@@ -179,12 +197,14 @@ func (h *ConnectionHandler) handleResults() error {
 		return err
 	}
 	tripsEOF := message.NewTripsEOFMessage(h.id)
-	h.producer.PublishMessage(tripsEOF, "")
-	h.resultsConsumer.Consume(func(msg message.Message) {
+	err = h.producer.PublishMessage(tripsEOF, "")
+	if err != nil {
+		return err
+	}
+	return h.resultsConsumer.Consume(func(msg message.Message) error {
 		if msg.IsEOF() {
-			return
+			return nil
 		}
-		protocol.Send(h.conn, protocol.NewDataMessage(msg.Batch[0]))
+		return protocol.Send(h.conn, protocol.NewDataMessage(msg.Batch[0]))
 	})
-	return nil
 }

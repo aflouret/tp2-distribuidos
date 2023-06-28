@@ -21,14 +21,16 @@ func main() {
 
 	consumer, err := middleware.NewConsumer("consumer", "")
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	producer, err := middleware.NewProducer("producer")
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	precipitationFilter := NewPrecipitationFilter(consumer, producer, minimumPrecipitations)
-	precipitationFilter.Run()
-
+	err = precipitationFilter.Run()
+	if err != nil {
+		log.Panic(err)
+	}
 	replier.Stop()
 }

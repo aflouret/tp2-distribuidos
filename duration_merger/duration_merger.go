@@ -36,29 +36,40 @@ func NewDurationMerger(consumer *middleware.Consumer, producer *middleware.Produ
 	}
 }
 
-func (m *DurationMerger) Run() {
-	defer m.consumer.Close()
-	defer m.producer.Close()
-
-	m.consumer.Consume(m.processMessage)
+func (m *DurationMerger) Run() error {
+	err := m.consumer.Consume(m.processMessage)
+	if err != nil {
+		return err
+	}
+	err = m.consumer.Close()
+	if err != nil {
+		return err
+	}
+	err = m.producer.Close()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (m *DurationMerger) processMessage(msg message.Message) {
+func (m *DurationMerger) processMessage(msg message.Message) error {
 	if msg.IsEOF() {
 		if msg.MsgType == message.ClientEOF {
 			if msg.ClientID == message.AllClients {
-				m.producer.PublishMessage(msg, message.AllClients)
+				err := m.producer.PublishMessage(msg, message.AllClients)
+				if err != nil {
+					return err
+				}
 				m.avgDurationsByDate = make(map[string]map[string]average)
 			} else {
 				delete(m.avgDurationsByDate, msg.ClientID)
 			}
-			return
+			return nil
 		}
-		m.sendResults(msg.ClientID)
-		return
+		return m.sendResults(msg.ClientID)
 	}
 
-	m.mergeResults(msg)
+	return m.mergeResults(msg)
 }
 
 func (m *DurationMerger) mergeResults(msg message.Message) error {
@@ -93,7 +104,7 @@ func (m *DurationMerger) mergeResults(msg message.Message) error {
 	return nil
 }
 
-func (m *DurationMerger) sendResults(clientID string) {
+func (m *DurationMerger) sendResults(clientID string) error {
 	sortedDates := make([]string, 0, len(m.avgDurationsByDate[clientID]))
 	for k := range m.avgDurationsByDate[clientID] {
 		sortedDates = append(sortedDates, k)
@@ -109,7 +120,10 @@ func (m *DurationMerger) sendResults(clientID string) {
 	}
 
 	msg := message.NewResultsBatchMessage("duration_merger", clientID, []string{result})
-	m.producer.PublishMessage(msg, msg.ClientID)
+	err := m.producer.PublishMessage(msg, msg.ClientID)
+	if err != nil {
+		return err
+	}
 	eof := message.NewResultsEOFMessage(clientID)
-	m.producer.PublishMessage(eof, msg.ClientID)
+	return m.producer.PublishMessage(eof, msg.ClientID)
 }

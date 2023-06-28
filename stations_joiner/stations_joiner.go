@@ -55,28 +55,47 @@ func NewStationsJoiner(
 	}
 }
 
-func (j *StationsJoiner) Run() {
-	defer j.yearFilterProducer.Close()
-	defer j.distanceCalculatorProducer.Close()
-
-	j.consumer.Consume(j.processMessage)
-	j.consumer.Close()
+func (j *StationsJoiner) Run() error {
+	err := j.consumer.Consume(j.processMessage)
+	if err != nil {
+		return err
+	}
+	err = j.consumer.Close()
+	if err != nil {
+		return err
+	}
+	err = j.yearFilterProducer.Close()
+	if err != nil {
+		return err
+	}
+	err = j.distanceCalculatorProducer.Close()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (j *StationsJoiner) processMessage(msg message.Message) {
+func (j *StationsJoiner) processMessage(msg message.Message) error {
 	switch msg.MsgType {
 	case message.StationsBatch, message.StationsEOF:
-		j.processStationsMessage(msg)
+		return j.processStationsMessage(msg)
 	case message.TripsBatch, message.TripsEOF:
-		j.processTripsMessage(msg)
+		return j.processTripsMessage(msg)
 	case message.ClientEOF:
-		j.processClientEOFMessage(msg)
+		return j.processClientEOFMessage(msg)
 	}
+	return nil
 }
 
-func (j *StationsJoiner) processClientEOFMessage(msg message.Message) {
-	j.yearFilterProducer.PublishMessage(msg, "")
-	j.distanceCalculatorProducer.PublishMessage(msg, "")
+func (j *StationsJoiner) processClientEOFMessage(msg message.Message) error {
+	err := j.yearFilterProducer.PublishMessage(msg, "")
+	if err != nil {
+		return err
+	}
+	err = j.distanceCalculatorProducer.PublishMessage(msg, "")
+	if err != nil {
+		return err
+	}
 	if msg.ClientID == message.AllClients {
 		j.stations = make(map[string]map[string]station)
 		j.pendingTrips = make(map[string]map[string][]string)
@@ -85,13 +104,13 @@ func (j *StationsJoiner) processClientEOFMessage(msg message.Message) {
 		delete(j.stations, msg.ClientID)
 		delete(j.stations, msg.ClientID)
 	}
+	return nil
 }
 
-func (j *StationsJoiner) processStationsMessage(msg message.Message) {
+func (j *StationsJoiner) processStationsMessage(msg message.Message) error {
 	if msg.IsEOF() {
 		j.stationsEOFs[msg.ClientID] = true
-		j.processPendingTrips(msg.ClientID)
-		return
+		return j.processPendingTrips(msg.ClientID)
 	}
 
 	if _, ok := j.stations[msg.ClientID]; !ok {
@@ -109,13 +128,16 @@ func (j *StationsJoiner) processStationsMessage(msg message.Message) {
 		key := getStationKey(code, year, msg.City)
 		j.stations[msg.ClientID][key] = station{name, latitude, longitude}
 	}
+	return nil
 }
 
-func (j *StationsJoiner) processTripsMessage(msg message.Message) {
+func (j *StationsJoiner) processTripsMessage(msg message.Message) error {
 	if msg.IsEOF() {
-		j.yearFilterProducer.PublishMessage(msg, "")
-		j.distanceCalculatorProducer.PublishMessage(msg, "")
-		return
+		err := j.yearFilterProducer.PublishMessage(msg, "")
+		if err != nil {
+			return err
+		}
+		return j.distanceCalculatorProducer.PublishMessage(msg, "")
 	}
 	if j.msgCount%5000 == 0 {
 		fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(j.startTime).String(), msg.ID)
@@ -129,16 +151,22 @@ func (j *StationsJoiner) processTripsMessage(msg message.Message) {
 
 		yearFilterBatch := message.NewTripsBatchMessage(msg.ID, msg.ClientID, "", yearFilterTrips)
 
-		j.yearFilterProducer.PublishMessage(yearFilterBatch, "")
+		err := j.yearFilterProducer.PublishMessage(yearFilterBatch, "")
+		if err != nil {
+			return err
+		}
 
 		if msg.City == "montreal" {
 			distanceCalculatorBatch := message.NewTripsBatchMessage(msg.ID, msg.ClientID, "", joinedTrips)
-			j.distanceCalculatorProducer.PublishMessage(distanceCalculatorBatch, "")
+			err := j.distanceCalculatorProducer.PublishMessage(distanceCalculatorBatch, "")
+			if err != nil {
+				return err
+			}
 		}
 	}
 
 	j.msgCount++
-
+	return nil
 }
 
 func getStationKey(code, year, city string) string {
@@ -214,10 +242,10 @@ func (j *StationsJoiner) savePendingTrip(clientID string, city string, trip stri
 	j.pendingTrips[clientID][city] = append(j.pendingTrips[clientID][city], trip)
 }
 
-func (j *StationsJoiner) processPendingTrips(clientID string) {
+func (j *StationsJoiner) processPendingTrips(clientID string) error {
 	tripsByCity, ok := j.pendingTrips[clientID]
 	if !ok {
-		return
+		return nil
 	}
 	for city, trips := range tripsByCity {
 		fmt.Printf("[Client %s] Processing %v pending trips\n", clientID, len(trips))
@@ -228,11 +256,15 @@ func (j *StationsJoiner) processPendingTrips(clientID string) {
 			batch = append(batch, trip)
 			if index%batchSize == 0 || index == len(trips) {
 				msg := message.NewTripsBatchMessage("s"+"."+j.instanceID+"."+strconv.Itoa(batchNumber), clientID, city, batch)
-				j.processTripsMessage(msg)
+				err := j.processTripsMessage(msg)
+				if err != nil {
+					return err
+				}
 				batch = make([]string, 0, batchSize)
 				batchNumber++
 			}
 		}
 	}
 	delete(j.pendingTrips, clientID)
+	return nil
 }

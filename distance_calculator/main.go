@@ -15,14 +15,16 @@ func main() {
 
 	consumer, err := middleware.NewConsumer("consumer", "")
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	producer, err := middleware.NewProducer("producer")
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	distanceCalculator := NewDistanceCalculator(producer, consumer)
-	distanceCalculator.Run()
-
+	err = distanceCalculator.Run()
+	if err != nil {
+		log.Panic(err)
+	}
 	replier.Stop()
 }

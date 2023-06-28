@@ -27,7 +27,12 @@ func (h *ClientHandler) Run() error {
 	if err != nil {
 		return err
 	}
-	defer listener.Close()
+	defer func() {
+		err := listener.Close()
+		if err != nil {
+			fmt.Println("Error closing listener", err)
+		}
+	}()
 
 	fmt.Println("ClientHandler listening on port 12345")
 	for {
@@ -51,19 +56,36 @@ func resetState() error {
 		return err
 	}
 	// Send EOF message to clear resources from all nodes
-	producer.PublishMessage(message.NewClientEOFMessage(message.AllClients), "")
+	err = producer.PublishMessage(message.NewClientEOFMessage(message.AllClients), "")
+	if err != nil {
+		return err
+	}
 	// Await response from last stage to confirm it has been received by all nodes
-	consumer.Consume(func(msg message.Message) {})
-	producer.Close()
-	consumer.Close()
+	err = consumer.Consume(func(msg message.Message) error { return nil })
+	if err != nil {
+		return err
+	}
+	err = producer.Close()
+	if err != nil {
+		return err
+	}
+	err = consumer.Close()
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
 
 func handleConnection(conn net.Conn) {
 	h := NewConnectionHandler(conn)
-	defer h.Close()
+
 	err := h.Run()
+	if err != nil {
+		fmt.Printf("Connection %s ended with error: %s\n", h.id, err)
+		return
+	}
+	err = h.Close()
 	if err != nil {
 		fmt.Printf("Connection %s closed with error: %s\n", h.id, err)
 		return

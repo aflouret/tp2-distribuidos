@@ -17,15 +17,17 @@ func main() {
 
 	producer, err := middleware.NewProducer("producer")
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	consumer, err := middleware.NewConsumer("consumer", "weather")
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	weatherJoiner := NewWeatherJoiner(instanceID, producer, consumer)
-	weatherJoiner.Run()
-
+	err = weatherJoiner.Run()
+	if err != nil {
+		log.Panic(err)
+	}
 	replier.Stop()
 }

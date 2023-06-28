@@ -25,11 +25,11 @@ func main() {
 
 	consumer, err := middleware.NewConsumer("consumer", "")
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	producer, err := middleware.NewProducer("producer")
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	replier := checkreplier.NewReplier()
@@ -39,7 +39,10 @@ func main() {
 	}
 
 	countMerger := NewCountMerger(consumer, producer, year1, year2)
-	countMerger.Run()
+	err = countMerger.Run()
+	if err != nil {
+		log.Panic(err)
+	}
 
 	replier.Stop()
 }
