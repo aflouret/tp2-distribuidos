@@ -109,7 +109,6 @@ func (j *StationsJoiner) processClientEOFMessage(msg message.Message) error {
 
 func (j *StationsJoiner) processStationsMessage(msg message.Message) error {
 	if msg.IsEOF() {
-		fmt.Printf("Received statiions EOF. Stations: %v\n", j.stations)
 		j.stationsEOFs[msg.ClientID] = true
 		return j.processPendingTrips(msg.ClientID)
 	}
@@ -127,7 +126,6 @@ func (j *StationsJoiner) processStationsMessage(msg message.Message) error {
 		longitude := fields[3]
 		year := fields[4]
 		key := getStationKey(code, year, msg.City)
-		fmt.Printf("[client %s] Saving station %s from message %s with key %s\n", msg.ClientID, s, msg.ID, key)
 		j.stations[msg.ClientID][key] = station{name, latitude, longitude}
 	}
 	return nil
@@ -191,7 +189,6 @@ func (j *StationsJoiner) joinStations(city string, trips []string, clientID stri
 			if !j.receivedStationsEOF(clientID) {
 				j.savePendingTrip(clientID, city, trip)
 			}
-			fmt.Printf("Could not join trip %s with start station\n", trip)
 			continue
 		}
 		endStationKey := getStationKey(endStationCode, year, city)
@@ -200,7 +197,6 @@ func (j *StationsJoiner) joinStations(city string, trips []string, clientID stri
 			if !j.receivedStationsEOF(clientID) {
 				j.savePendingTrip(clientID, city, trip)
 			}
-			fmt.Printf("Could not join trip %s with end station\n", trip)
 			continue
 		}
 		joinedTrip := fmt.Sprintf("%s,%s,%s,%s,%s,%s,%s",
@@ -237,7 +233,6 @@ func (j *StationsJoiner) receivedStationsEOF(clientID string) bool {
 }
 
 func (j *StationsJoiner) savePendingTrip(clientID string, city string, trip string) {
-	fmt.Printf("Saving pending trip: %s\n", trip)
 	if _, ok := j.pendingTrips[clientID]; !ok {
 		j.pendingTrips[clientID] = make(map[string][]string)
 	}

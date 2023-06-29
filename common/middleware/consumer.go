@@ -185,7 +185,6 @@ func (c *Consumer) Consume(processMessage func(message.Message) error) error {
 	if !c.isResultsConsumer() {
 		fmt.Println("Recovering state")
 		err := recovery.Recover("recovery_files", func(msg message.Message) error {
-			fmt.Printf("Recovering message: %v\n", msg.ID)
 			var err error
 			if msg.IsEOF() {
 				_, err = c.processEOF(msg, processMessage, true)
@@ -212,11 +211,9 @@ func (c *Consumer) Consume(processMessage func(message.Message) error) error {
 			return nil
 		case delivery := <-c.msgChannel:
 			// Deserialize message
-			fmt.Printf("Deserializing message\n")
 			msg := message.Deserialize(string(delivery.Body))
 
 			// Process message and check for duplicates
-			fmt.Printf("Processing message: %v\n", msg.ID)
 			var isDuplicateMessage bool
 			if msg.IsEOF() {
 				isDuplicateMessage, err = c.processEOF(msg, processMessage, false)
@@ -226,36 +223,33 @@ func (c *Consumer) Consume(processMessage func(message.Message) error) error {
 			if err != nil {
 				return fmt.Errorf("error processing message %v, %w", msg, err)
 			}
-			fmt.Printf("Finished processing message: %s %v - duplicate:%v\n", msg.MsgType, msg.ID, isDuplicateMessage)
+
 			// Store message if necessary
 			if c.shouldStore(msg) && !isDuplicateMessage {
 				err := storageManager.Store(msg)
 				if err != nil {
 					return fmt.Errorf("error storing message %v, %w", msg, err)
 				}
-				fmt.Printf("Finished storing message: %v\n", msg.ID)
 			}
+
 			// ACK message
 			err := delivery.Ack(false)
 			if err != nil {
 				return fmt.Errorf("error ACKing message %v, %w", msg, err)
 			}
-			fmt.Printf("Finished ACKING message: %v\n", msg.ID)
+
 			// Return if it is the last Result EOF
 			if c.isResultsConsumer() && c.receivedAllEOFs(msg.ClientID, msg.MsgType) {
-				fmt.Printf("Last EOF: %v\n", msg.ID)
 				return nil
 			}
 
 			if msg.MsgType == message.ClientEOF && c.receivedAllEOFs(msg.ClientID, msg.MsgType) {
-				fmt.Printf("Deleting resources\n")
 				// Delete files and maps allocated for client
-				//err := storageManager.Delete(msg.ClientID)
-				//if err != nil {
-				//	return fmt.Errorf("error deleting resources: %w", err)
-				//}
+				err := storageManager.Delete(msg.ClientID)
+				if err != nil {
+					return fmt.Errorf("error deleting resources: %w", err)
+				}
 				c.deleteResources(msg.ClientID)
-				fmt.Printf("Finished deleting resources\n")
 			}
 		}
 	}

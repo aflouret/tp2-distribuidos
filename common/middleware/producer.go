@@ -90,7 +90,6 @@ func (p *Producer) PublishMessage(msg message.Message, routingKey string) error 
 		msg.ID = p.config.instanceID
 	}
 
-	fmt.Printf("Publishing with routing key: %s, message: %s\n", routingKey, msg.ID)
 	err = p.ch.PublishWithContext(context.TODO(),
 		p.config.exchangeName,
 		routingKey,
@@ -105,7 +104,6 @@ func (p *Producer) PublishMessage(msg message.Message, routingKey string) error 
 	if err != nil {
 		return fmt.Errorf("error publishing message %v: %w", msg, err)
 	}
-	fmt.Printf("Finished publishing with routing key: %s, message: %s\n", routingKey, msg)
 	return nil
 }
 
