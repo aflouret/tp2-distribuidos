@@ -65,7 +65,7 @@ RunTp(){
         # Docker Compose Up
         rm -rf ./data/recovery_data
         python3 create_docker_compose.py
-        docker compose up --build
+        docker compose up --build -d
 
     fi
 

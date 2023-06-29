@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/google/uuid"
+	"golang.org/x/sync/semaphore"
 	"log"
 	"net"
 	"os"
@@ -15,6 +17,8 @@ import (
 	"tp1/common/middleware"
 	"tp1/common/protocol"
 )
+
+const MAXCLIENTS = 4
 
 type ClientHandler struct{}
 
@@ -69,16 +73,28 @@ func (h *ClientHandler) Run() {
 	}
 	defer listener.Close()
 
-	fmt.Println("ClientHandler listening on port 12345")
+	var sem = semaphore.NewWeighted(MAXCLIENTS)
+	var ctx = context.TODO()
+
+	fmt.Println("ClientHandler listening on port 12380")
 	for {
+
+		err := sem.Acquire(ctx, 1)
+		if err != nil {
+			return
+		}
+
 		conn, err := listener.Accept()
 		if err != nil {
 			fmt.Printf("Error accepting connection: %v\n", err)
 			continue
 		}
-		go handleConnection(conn)
-	}
 
+		go func() {
+			defer sem.Release(1)
+			handleConnection(conn)
+		}()
+	}
 }
 
 func handleConnection(conn net.Conn) {
