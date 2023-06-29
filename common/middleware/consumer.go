@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strconv"
 	"syscall"
+	"time"
 	"tp1/common/message"
 	"tp1/common/recovery"
 )
@@ -185,9 +186,10 @@ func (c *Consumer) Consume(processMessage func(message.Message) error) error {
 	if !c.isResultsConsumer() {
 		fmt.Println("Recovering state")
 		err := recovery.Recover("recovery_files", func(msg message.Message) error {
+			fmt.Printf("Recovering message: %v\n", msg.ID)
 			var err error
 			if msg.IsEOF() {
-				_, err = c.processEOF(msg, processMessage)
+				_, err = c.processEOF(msg, processMessage, true)
 			} else {
 				_, err = c.processBatchMessage(msg, processMessage)
 			}
@@ -211,45 +213,53 @@ func (c *Consumer) Consume(processMessage func(message.Message) error) error {
 			return nil
 		case delivery := <-c.msgChannel:
 			// Deserialize message
+			fmt.Printf("Deserializing message\n")
 			msg := message.Deserialize(string(delivery.Body))
+			if msg.MsgType == message.TripsBatch {
+				time.Sleep(200 * time.Millisecond)
+			}
 
 			// Process message and check for duplicates
+			fmt.Printf("Processing message: %v\n", msg.ID)
 			var isDuplicateMessage bool
 			if msg.IsEOF() {
-				isDuplicateMessage, err = c.processEOF(msg, processMessage)
+				isDuplicateMessage, err = c.processEOF(msg, processMessage, false)
 			} else {
 				isDuplicateMessage, err = c.processBatchMessage(msg, processMessage)
 			}
 			if err != nil {
 				return fmt.Errorf("error processing message %v, %w", msg, err)
 			}
-
+			fmt.Printf("Finished processing message: %s %v - duplicate:%v\n", msg.MsgType, msg.ID, isDuplicateMessage)
 			// Store message if necessary
 			if c.shouldStore(msg) && !isDuplicateMessage {
 				err := storageManager.Store(msg)
 				if err != nil {
 					return fmt.Errorf("error storing message %v, %w", msg, err)
 				}
+				fmt.Printf("Finished storing message: %v\n", msg.ID)
 			}
-
 			// ACK message
 			err := delivery.Ack(false)
 			if err != nil {
 				return fmt.Errorf("error ACKing message %v, %w", msg, err)
 			}
-
+			fmt.Printf("Finished ACKING message: %v\n", msg.ID)
 			// Return if it is the last Result EOF
 			if c.isResultsConsumer() && c.receivedAllEOFs(msg.ClientID, msg.MsgType) {
+				fmt.Printf("Last EOF: %v\n", msg.ID)
 				return nil
 			}
 
 			if msg.MsgType == message.ClientEOF && c.receivedAllEOFs(msg.ClientID, msg.MsgType) {
+				fmt.Printf("Deleting resources\n")
 				// Delete files and maps allocated for client
-				err := storageManager.Delete(msg.ClientID)
-				if err != nil {
-					return fmt.Errorf("error deleting resources: %w", err)
-				}
+				//err := storageManager.Delete(msg.ClientID)
+				//if err != nil {
+				//	return fmt.Errorf("error deleting resources: %w", err)
+				//}
 				c.deleteResources(msg.ClientID)
+				fmt.Printf("Finished deleting resources\n")
 			}
 		}
 	}
@@ -267,13 +277,13 @@ func (c *Consumer) Close() error {
 	return nil
 }
 
-func (c *Consumer) processEOF(msg message.Message, processMessage func(message.Message) error) (isDuplicateMessage bool, err error) {
+func (c *Consumer) processEOF(msg message.Message, processMessage func(message.Message) error, recovery bool) (isDuplicateMessage bool, err error) {
 	// Allocate map for client and type if it does not exist
 	if _, ok := c.eofsReceived[msg.ClientID]; !ok {
 		c.eofsReceived[msg.ClientID] = make(map[string]map[string]struct{})
 	}
 	if _, ok := c.eofsReceived[msg.ClientID][msg.MsgType]; !ok {
-		c.eofsReceived[msg.ClientID][msg.MsgType] = make(map[string]struct{}, 15000)
+		c.eofsReceived[msg.ClientID][msg.MsgType] = make(map[string]struct{})
 	}
 
 	// If the message was already received, do nothing
@@ -287,7 +297,7 @@ func (c *Consumer) processEOF(msg message.Message, processMessage func(message.M
 	fmt.Printf("[Client %s] Received %s %v of %v \n", msg.ClientID, msg.MsgType, len(c.eofsReceived[msg.ClientID][msg.MsgType]), c.config.previousStageInstances)
 
 	// If it is the last EOF then process it
-	if c.receivedAllEOFs(msg.ClientID, msg.MsgType) {
+	if c.receivedAllEOFs(msg.ClientID, msg.MsgType) && (!recovery || msg.MsgType == message.StationsEOF || msg.MsgType == message.WeatherEOF) {
 		fmt.Printf("[Client %s] Received all %s eofs\n", msg.ClientID, msg.MsgType)
 		err = processMessage(msg)
 		if err != nil {
@@ -301,7 +311,7 @@ func (c *Consumer) processBatchMessage(msg message.Message, processMessage func(
 	if c.shouldFilterDuplicates() {
 		// Allocate map for client if it does not exist
 		if _, ok := c.msgIDsReceived[msg.ClientID]; !ok {
-			c.msgIDsReceived[msg.ClientID] = make(map[string]struct{})
+			c.msgIDsReceived[msg.ClientID] = make(map[string]struct{}, 15000)
 		}
 
 		// If the message was already received, do nothing
@@ -326,7 +336,7 @@ func (c *Consumer) receivedAllEOFs(clientID string, msgType string) bool {
 }
 
 func (c *Consumer) shouldStore(msg message.Message) bool {
-	if msg.MsgType == message.ClientEOF {
+	if msg.MsgType == message.ClientEOF && msg.ClientID != message.AllClients {
 		return true
 	}
 	for _, t := range c.config.messageTypesToStore {

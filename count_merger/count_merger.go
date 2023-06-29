@@ -133,9 +133,7 @@ func (m *CountMerger) sendResults(clientID string) error {
 	for _, s := range sortedStations {
 		countYear2 := m.countByStationYear2[clientID][s]
 		if countYear1, ok := m.countByStationYear1[clientID][s]; ok {
-			if countYear2 > 2*countYear1 {
-				result += fmt.Sprintf("%s,%v,%v\n", s, countYear2, countYear1)
-			}
+			result += fmt.Sprintf("%s,%v,%v\n", s, countYear2, countYear1)
 		}
 	}
 

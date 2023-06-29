@@ -115,14 +115,12 @@ func (m *DistanceMerger) sendResults(clientID string) error {
 	}
 	sort.Strings(sortedStations)
 
-	result := fmt.Sprintf("Stations with more than %v km average to arrive at them:\n", m.minimumDistance)
+	result := fmt.Sprintf("Stations with more than %v km average to arrive at them:\n", 0)
 	result += "end_station_name,average_distance\n"
 
 	for _, s := range sortedStations {
 		avg := m.avgDistancesByStation[clientID][s].avg
-		if avg > m.minimumDistance {
-			result += fmt.Sprintf("%s,%.6f\n", s, avg)
-		}
+		result += fmt.Sprintf("%s,%.6f\n", s, avg)
 	}
 	msg := message.NewResultsBatchMessage("distance_merger", clientID, []string{result})
 	err := m.producer.PublishMessage(msg, msg.ClientID)

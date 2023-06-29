@@ -316,7 +316,7 @@ func logResults(results []string) {
 			res := strings.Join(lines[2:], "\n")
 			f.Write([]byte(res))
 			f.Close()
-		case "Stations with more than 6 km average to arrive at them:":
+		case "Stations with more than 0 km average to arrive at them:":
 			f, _ := os.OpenFile("recovery_files/result_3.txt", os.O_CREATE|os.O_WRONLY, 0666)
 			res := strings.Join(lines[2:], "\n")
 			f.Write([]byte(res))
