@@ -3,6 +3,6 @@ server:
 log:
   level: "info"
 trips:
-  filename: "trips-medium.csv"
+  filename: "trips.csv"
 batch:
   size: 500

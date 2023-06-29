@@ -49,6 +49,70 @@ services:
         target: /config.yaml
       - ./data/recovery_data/client_0:/recovery_files/
 
+  client_1:
+    container_name: client_1
+    image: client:latest
+    entrypoint: /client
+    restart: on-failure
+    depends_on:
+      - client_handler
+    volumes:
+      - type: bind
+        source: ./data
+        target: /data
+      - type: bind
+        source: ./client/config.yaml
+        target: /config.yaml
+      - ./data/recovery_data/client_1:/recovery_files/
+
+  client_2:
+    container_name: client_2
+    image: client:latest
+    entrypoint: /client
+    restart: on-failure
+    depends_on:
+      - client_handler
+    volumes:
+      - type: bind
+        source: ./data
+        target: /data
+      - type: bind
+        source: ./client/config.yaml
+        target: /config.yaml
+      - ./data/recovery_data/client_2:/recovery_files/
+
+  client_3:
+    container_name: client_3
+    image: client:latest
+    entrypoint: /client
+    restart: on-failure
+    depends_on:
+      - client_handler
+    volumes:
+      - type: bind
+        source: ./data
+        target: /data
+      - type: bind
+        source: ./client/config.yaml
+        target: /config.yaml
+      - ./data/recovery_data/client_3:/recovery_files/
+
+  client_4:
+    container_name: client_4
+    image: client:latest
+    entrypoint: /client
+    restart: on-failure
+    depends_on:
+      - client_handler
+    volumes:
+      - type: bind
+        source: ./data
+        target: /data
+      - type: bind
+        source: ./client/config.yaml
+        target: /config.yaml
+      - ./data/recovery_data/client_4:/recovery_files/
+
 
   duration_merger:
     container_name: duration_merger
@@ -73,7 +137,7 @@ services:
     container_name: count_merger
     environment:
       - ID=count_merger
-      - PREV_STAGE_INSTANCES=3
+      - PREV_STAGE_INSTANCES=1
       - NEXT_STAGE_INSTANCES=1
       - YEAR_1=2016
       - YEAR_2=2017
@@ -224,7 +288,7 @@ services:
     environment:
       - ID=0
       - PREV_STAGE_INSTANCES=1
-      - NEXT_STAGE_INSTANCES=3
+      - NEXT_STAGE_INSTANCES=1
       - YEAR_1=2016
       - YEAR_2=2017
       - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
@@ -233,8 +297,6 @@ services:
     restart: on-failure
     depends_on:
       - trip_counter_0
-      - trip_counter_1
-      - trip_counter_2
 
     volumes:
       - type: bind
@@ -262,46 +324,6 @@ services:
         source: ./trip_counter/middleware_config.yaml
         target: /middleware_config.yaml
       - ./data/recovery_data/trip_counter_0:/recovery_files/
-
-  trip_counter_1:
-    container_name: trip_counter_1
-    environment:
-      - ID=1
-      - YEAR_1=2016
-      - YEAR_2=2017
-      - PREV_STAGE_INSTANCES=1
-      - NEXT_STAGE_INSTANCES=1
-      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
-    image: trip_counter:latest
-    entrypoint: /trip_counter
-    restart: on-failure
-    depends_on:
-      - count_merger
-    volumes:
-      - type: bind
-        source: ./trip_counter/middleware_config.yaml
-        target: /middleware_config.yaml
-      - ./data/recovery_data/trip_counter_1:/recovery_files/
-
-  trip_counter_2:
-    container_name: trip_counter_2
-    environment:
-      - ID=2
-      - YEAR_1=2016
-      - YEAR_2=2017
-      - PREV_STAGE_INSTANCES=1
-      - NEXT_STAGE_INSTANCES=1
-      - RABBITMQ_CONNECTION_STRING=amqp://guest:guest@rabbitmq:5672/
-    image: trip_counter:latest
-    entrypoint: /trip_counter
-    restart: on-failure
-    depends_on:
-      - count_merger
-    volumes:
-      - type: bind
-        source: ./trip_counter/middleware_config.yaml
-        target: /middleware_config.yaml
-      - ./data/recovery_data/trip_counter_2:/recovery_files/
 
 
   distance_calculator_0:
@@ -347,8 +369,8 @@ services:
     container_name: health_checker_0
     environment:
       - HOSTNAME=health_checker_0
-      - PEERS=health_checker_0,health_checker_1,health_checker_2
-      - TARGETS=trip_counter_0,trip_counter_1,trip_counter_2,duration_averager_0,distance_averager_0,precipitation_filter_0,distance_calculator_0,year_filter_0,weather_joiner_0,stations_joiner_0,data_dropper_0,health_checker_0,health_checker_1,health_checker_2,client_handler,duration_merger,count_merger,distance_merger
+      - PEERS=health_checker_0,health_checker_1,health_checker_2,health_checker_3
+      - TARGETS=trip_counter_0,duration_averager_0,distance_averager_0,precipitation_filter_0,distance_calculator_0,year_filter_0,weather_joiner_0,stations_joiner_0,data_dropper_0,health_checker_0,health_checker_1,health_checker_2,health_checker_3,client_handler,duration_merger,count_merger,distance_merger
     image: health_checker:latest
     entrypoint: python3 /app/main.py
     restart: on-failure
@@ -364,8 +386,8 @@ services:
     container_name: health_checker_1
     environment:
       - HOSTNAME=health_checker_1
-      - PEERS=health_checker_0,health_checker_1,health_checker_2
-      - TARGETS=trip_counter_0,trip_counter_1,trip_counter_2,duration_averager_0,distance_averager_0,precipitation_filter_0,distance_calculator_0,year_filter_0,weather_joiner_0,stations_joiner_0,data_dropper_0,health_checker_0,health_checker_1,health_checker_2,client_handler,duration_merger,count_merger,distance_merger
+      - PEERS=health_checker_0,health_checker_1,health_checker_2,health_checker_3
+      - TARGETS=trip_counter_0,duration_averager_0,distance_averager_0,precipitation_filter_0,distance_calculator_0,year_filter_0,weather_joiner_0,stations_joiner_0,data_dropper_0,health_checker_0,health_checker_1,health_checker_2,health_checker_3,client_handler,duration_merger,count_merger,distance_merger
     image: health_checker:latest
     entrypoint: python3 /app/main.py
     restart: on-failure
@@ -381,8 +403,25 @@ services:
     container_name: health_checker_2
     environment:
       - HOSTNAME=health_checker_2
-      - PEERS=health_checker_0,health_checker_1,health_checker_2
-      - TARGETS=trip_counter_0,trip_counter_1,trip_counter_2,duration_averager_0,distance_averager_0,precipitation_filter_0,distance_calculator_0,year_filter_0,weather_joiner_0,stations_joiner_0,data_dropper_0,health_checker_0,health_checker_1,health_checker_2,client_handler,duration_merger,count_merger,distance_merger
+      - PEERS=health_checker_0,health_checker_1,health_checker_2,health_checker_3
+      - TARGETS=trip_counter_0,duration_averager_0,distance_averager_0,precipitation_filter_0,distance_calculator_0,year_filter_0,weather_joiner_0,stations_joiner_0,data_dropper_0,health_checker_0,health_checker_1,health_checker_2,health_checker_3,client_handler,duration_merger,count_merger,distance_merger
+    image: health_checker:latest
+    entrypoint: python3 /app/main.py
+    restart: on-failure
+    volumes:
+        - ./health_checker/main.py:/app/main.py
+        - ./health_checker/health_checker.py:/app/health_checker.py
+        - ./health_checker/messaging_protocol.py:/app/messaging_protocol.py
+        - ./health_checker/leader_election/:/app/leader_election/
+        - ./health_checker/replier/replier.py:/app/replier.py
+        - /var/run/docker.sock:/var/run/docker.sock
+
+  health_checker_3:
+    container_name: health_checker_3
+    environment:
+      - HOSTNAME=health_checker_3
+      - PEERS=health_checker_0,health_checker_1,health_checker_2,health_checker_3
+      - TARGETS=trip_counter_0,duration_averager_0,distance_averager_0,precipitation_filter_0,distance_calculator_0,year_filter_0,weather_joiner_0,stations_joiner_0,data_dropper_0,health_checker_0,health_checker_1,health_checker_2,health_checker_3,client_handler,duration_merger,count_merger,distance_merger
     image: health_checker:latest
     entrypoint: python3 /app/main.py
     restart: on-failure

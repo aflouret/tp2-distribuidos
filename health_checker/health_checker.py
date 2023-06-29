@@ -1,7 +1,9 @@
 import concurrent
+import queue
 import socket
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from math import ceil
 from time import sleep
 from messaging_protocol import send, receive, Packet
 import logging as log
@@ -11,7 +13,7 @@ client = docker.from_env()
 
 CHECKER_PORT = 12345
 MSG_SIZE = 128
-CHECKING_INTERVAL = 10
+CHECKING_INTERVAL = 2
 LUTO_TIME = 10
 CONNECTION_RETRIES = 3
 CONNETION_RETRY_BASE_TIME = 1
@@ -28,38 +30,58 @@ TARGET_ERRORS = (ConnectionError, TimeoutError, socket.gaierror)
 
 class HealthChecker:
 
-    def __init__(self, targets):
+    def __init__(self, targets, workers):
         self.targets = targets
         self.running = False
+        self.workers = workers
+        self.mutex = threading.Lock()
+        self.queue = queue.Queue()
+
+        for x in targets:
+            self.queue.put((x, None))
 
     def run(self):
 
         self.running = True
-        thread_poll = []
+        thread_pool = []
 
-        # Connect stage
-        for hostname in self.targets:
-            t = threading.Thread(target=self.handle_node, args=[hostname])
+        # Spawn workers
+        for i in range(self.workers):
+            t = threading.Thread(target=self.process_tasks)
             t.start()
-            thread_poll.append(t)
+            thread_pool.append(t)
 
-        for t in thread_poll:
+        for t in thread_pool:
             t.join()
 
-    def handle_node(self, hostname):
+        while not self.queue.empty():
+            target, s = self.get_task()
+            if s:
+                s.close()
 
-        s = self.connect_to(hostname)
+    def get_task(self):
+        with self.mutex:
+            value = self.queue.get()
+        return value
+
+    def put_task(self, value):
+        with self.mutex:
+            self.queue.put(value)
+
+    def process_tasks(self):
+
         while self.running:
 
-            success = s and self.do_ping(s, hostname)
+            target, s = self.get_task()
+            if not s:
+                s = self.connect_to(target)
 
+            success = s and self.do_ping(s, target)
             if not success:
-                s = self.bring_to_live(hostname)
+                s = self.bring_to_live(target)
 
+            self.put_task((target, s))
             sleep(CHECKING_INTERVAL)
-
-        if s:
-            s.close()
 
     def bring_to_live(self, name):
 

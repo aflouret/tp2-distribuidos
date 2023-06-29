@@ -3,3 +3,4 @@ config.ini
 compose.yaml
 client/config.yaml
 */middleware_config.yaml
+vendor/

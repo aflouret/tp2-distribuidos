@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"golang.org/x/sync/semaphore"
 	"net"
 	"tp1/common/message"
 	"tp1/common/middleware"
 )
+
+const MAXCLIENTS = 4
 
 type ClientHandler struct {
 	address string
@@ -34,16 +38,28 @@ func (h *ClientHandler) Run() error {
 		}
 	}()
 
-	fmt.Println("ClientHandler listening on port 12345")
+	var sem = semaphore.NewWeighted(MAXCLIENTS)
+	var ctx = context.TODO()
+
+	fmt.Println("ClientHandler listening on port 12380")
 	for {
+
+		err := sem.Acquire(ctx, 1)
+		if err != nil {
+			return err
+		}
+
 		conn, err := listener.Accept()
 		if err != nil {
 			fmt.Printf("Error accepting connection: %v\n", err)
 			continue
 		}
-		go handleConnection(conn)
-	}
 
+		go func() {
+			handleConnection(conn)
+			sem.Release(1)
+		}()
+	}
 }
 
 func resetState() error {
