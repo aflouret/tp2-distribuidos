@@ -83,7 +83,7 @@ func (f *PrecipitationFilter) filter(trips []string) []string {
 			fmt.Println(fmt.Errorf("error parsing precipitations: %w", err))
 			continue
 		}
-		if precipitations > 10 {
+		if precipitations > f.minimumPrecipitations {
 			startDate := fields[startDateIndex]
 			duration := fields[durationIndex]
 			filteredTrip := fmt.Sprintf("%s,%s", startDate, duration)

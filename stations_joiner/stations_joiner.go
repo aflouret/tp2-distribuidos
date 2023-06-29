@@ -127,11 +127,8 @@ func (j *StationsJoiner) processStationsMessage(msg message.Message) error {
 		longitude := fields[3]
 		year := fields[4]
 		key := getStationKey(code, year, msg.City)
-		fmt.Printf("Saving station %s from message %s with key %s\n", s, msg.ID, key)
+		fmt.Printf("[client %s] Saving station %s from message %s with key %s\n", msg.ClientID, s, msg.ID, key)
 		j.stations[msg.ClientID][key] = station{name, latitude, longitude}
-		if s == "6248,St-Dominique / Rachel,45.518593,-73.58156600000001,2017" {
-			fmt.Println(j.stations)
-		}
 	}
 	return nil
 }

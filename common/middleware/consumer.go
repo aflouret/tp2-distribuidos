@@ -10,7 +10,6 @@ import (
 	"runtime"
 	"strconv"
 	"syscall"
-	"time"
 	"tp1/common/message"
 	"tp1/common/recovery"
 )
@@ -215,9 +214,6 @@ func (c *Consumer) Consume(processMessage func(message.Message) error) error {
 			// Deserialize message
 			fmt.Printf("Deserializing message\n")
 			msg := message.Deserialize(string(delivery.Body))
-			if msg.MsgType == message.TripsBatch {
-				time.Sleep(200 * time.Millisecond)
-			}
 
 			// Process message and check for duplicates
 			fmt.Printf("Processing message: %v\n", msg.ID)
