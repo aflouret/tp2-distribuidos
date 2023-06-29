@@ -38,21 +38,41 @@ func NewDistanceMerger(consumer *middleware.Consumer, producer *middleware.Produ
 	}
 }
 
-func (m *DistanceMerger) Run() {
-	defer m.consumer.Close()
-	defer m.producer.Close()
-
-	m.consumer.Consume(m.processMessage)
+func (m *DistanceMerger) Run() error {
+	err := m.consumer.Consume(m.processMessage)
+	if err != nil {
+		return err
+	}
+	err = m.consumer.Close()
+	if err != nil {
+		return err
+	}
+	err = m.producer.Close()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (m *DistanceMerger) processMessage(msg message.Message) {
+func (m *DistanceMerger) processMessage(msg message.Message) error {
 	if msg.IsEOF() {
-		m.sendResults(msg.ClientID)
-		delete(m.avgDistancesByStation, msg.ClientID)
-		return
+		if msg.MsgType == message.ClientEOF {
+			if msg.ClientID == message.AllClients {
+				err := m.producer.PublishMessage(msg, message.AllClients)
+				if err != nil {
+					return err
+				}
+				m.avgDistancesByStation = make(map[string]map[string]average)
+			} else {
+				delete(m.avgDistancesByStation, msg.ClientID)
+			}
+			return nil
+		}
+		return m.sendResults(msg.ClientID)
 	}
 
-	m.mergeResults(msg)
+	return m.mergeResults(msg)
+
 }
 
 func (m *DistanceMerger) mergeResults(msg message.Message) error {
@@ -88,7 +108,7 @@ func (m *DistanceMerger) mergeResults(msg message.Message) error {
 	return nil
 }
 
-func (m *DistanceMerger) sendResults(clientID string) {
+func (m *DistanceMerger) sendResults(clientID string) error {
 	sortedStations := make([]string, 0, len(m.avgDistancesByStation[clientID]))
 	for k := range m.avgDistancesByStation[clientID] {
 		sortedStations = append(sortedStations, k)
@@ -105,7 +125,10 @@ func (m *DistanceMerger) sendResults(clientID string) {
 		}
 	}
 	msg := message.NewResultsBatchMessage("distance_merger", clientID, []string{result})
-	m.producer.PublishMessage(msg, msg.ClientID)
+	err := m.producer.PublishMessage(msg, msg.ClientID)
+	if err != nil {
+		return err
+	}
 	eof := message.NewResultsEOFMessage(clientID)
-	m.producer.PublishMessage(eof, msg.ClientID)
+	return m.producer.PublishMessage(eof, msg.ClientID)
 }

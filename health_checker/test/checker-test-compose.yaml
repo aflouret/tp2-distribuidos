@@ -1,0 +1,40 @@
+name: test-health-checker
+services:
+  checker:
+    container_name: checker
+    image: checker-test:latest
+    entrypoint: python3 /app/main.py
+    volumes:
+      - ./main.py:/app/main.py
+      - ../health_checker.py:/app/health_checker.py
+      - ../messaging_protocol.py:/app/messaging_protocol.py
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - TARGETS=target-1,target-2,target-3
+
+  target-1:
+    container_name: target-1
+    image: python
+    entrypoint: python3 /app/node_mock.py
+    volumes:
+      - ./node_mock.py:/app/node_mock.py
+      - ../messaging_protocol.py:/app/messaging_protocol.py
+
+  target-2:
+    container_name: target-2
+    image: python
+    entrypoint: python3 /app/node_mock.py
+    volumes:
+      - ./node_mock.py:/app/node_mock.py
+      - ../messaging_protocol.py:/app/messaging_protocol.py
+
+  target-3:
+    container_name: target-3
+    image: python
+    entrypoint: python3 /app/node_mock.py
+    volumes:
+      - ./node_mock.py:/app/node_mock.py
+      - ../messaging_protocol.py:/app/messaging_protocol.py
+
+
+

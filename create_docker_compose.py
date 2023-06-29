@@ -5,6 +5,7 @@ config = ConfigParser(os.environ)
 config.read("config.ini")
 
 rabbitmq_connection_string = config["DEFAULT"]["RABBITMQ_CONNECTION_STRING"]
+client_handler_address = config["DEFAULT"]["CLIENT_HANDLER_ADDRESS"]
 
 client_handler_instances = 1
 client_instances = int(config["DEFAULT"]["CLIENT_INSTANCES"])
@@ -20,6 +21,9 @@ trip_counter_instances= int(config["DEFAULT"]["TRIP_COUNTER_INSTANCES"])
 
 distance_calculator_instances = int(config["DEFAULT"]["DISTANCE_CALCULATOR_INSTANCES"])
 distance_averager_instances = int(config["DEFAULT"]["DISTANCE_AVERAGER_INSTANCES"])
+
+health_checker_instances = int(config["DEFAULT"]["HEALTH_CHECKER_INSTANCES"])
+health_checker_targets = []
 
 duration_merger_instances = 1
 count_merger_instances = 1
@@ -49,15 +53,14 @@ for i in range(0, client_instances):
       - type: bind
         source: ./client/config.yaml
         target: /config.yaml
-      - type: bind
-        source: ./data/recovery_data/client_{i}
-        target: /recovery_files
+      - ./data/recovery_data/client_{i}:/recovery_files/
 '''
 
 
 trip_counter_string = ""
 trip_counter_dependency_string = ""
 for i in range(0, trip_counter_instances):
+    health_checker_targets.append(f"trip_counter_{i}")
     trip_counter_string = trip_counter_string + f'''
   trip_counter_{i}:
     container_name: trip_counter_{i}
@@ -77,9 +80,7 @@ for i in range(0, trip_counter_instances):
       - type: bind
         source: ./trip_counter/middleware_config.yaml
         target: /middleware_config.yaml
-      - type: bind
-        source: ./data/recovery_data/trip_counter_{i}
-        target: /recovery_files
+      - ./data/recovery_data/trip_counter_{i}:/recovery_files/
 '''
     trip_counter_dependency_string = trip_counter_dependency_string + f'''      - trip_counter_{i}
 '''
@@ -88,6 +89,7 @@ for i in range(0, trip_counter_instances):
 duration_averager_string = ""
 duration_averager_dependency_string = ""
 for i in range(0, duration_averager_instances):
+    health_checker_targets.append(f"duration_averager_{i}")
     duration_averager_string = duration_averager_string + f'''
   duration_averager_{i}:
     container_name: duration_averager_{i}
@@ -105,9 +107,7 @@ for i in range(0, duration_averager_instances):
       - type: bind
         source: ./duration_averager/middleware_config.yaml
         target: /middleware_config.yaml
-      - type: bind
-        source: ./data/recovery_data/duration_averager_{i}
-        target: /recovery_files
+      - ./data/recovery_data/duration_averager_{i}:/recovery_files/
 '''
     duration_averager_dependency_string = duration_averager_dependency_string + f'''      - duration_averager_{i}
 '''
@@ -116,6 +116,7 @@ for i in range(0, duration_averager_instances):
 distance_averager_string = ""
 distance_averager_dependency_string = ""
 for i in range(0, distance_averager_instances):
+    health_checker_targets.append(f"distance_averager_{i}")
     distance_averager_string = distance_averager_string + f'''
   distance_averager_{i}:
     container_name: distance_averager_{i}
@@ -133,9 +134,7 @@ for i in range(0, distance_averager_instances):
       - type: bind
         source: ./distance_averager/middleware_config.yaml
         target: /middleware_config.yaml
-      - type: bind
-        source: ./data/recovery_data/distance_averager_{i}
-        target: /recovery_files
+      - ./data/recovery_data/distance_averager_{i}:/recovery_files/
 '''
     distance_averager_dependency_string = distance_averager_dependency_string + f'''      - distance_averager_{i}
 '''
@@ -144,6 +143,7 @@ for i in range(0, distance_averager_instances):
 precipitation_filter_string = ""
 precipitation_filter_dependency_string = ""
 for i in range(0, precipitation_filter_instances):
+    health_checker_targets.append(f"precipitation_filter_{i}")
     precipitation_filter_string = precipitation_filter_string + f'''
   precipitation_filter_{i}:
     container_name: precipitation_filter_{i}
@@ -162,9 +162,7 @@ for i in range(0, precipitation_filter_instances):
       - type: bind
         source: ./precipitation_filter/middleware_config.yaml
         target: /middleware_config.yaml
-      - type: bind
-        source: ./data/recovery_data/precipitation_filter_{i}
-        target: /recovery_files
+      - ./data/recovery_data/precipitation_filter_{i}:/recovery_files/
 '''
     precipitation_filter_dependency_string = precipitation_filter_dependency_string + f'''      - precipitation_filter_{i}
 '''
@@ -172,6 +170,7 @@ for i in range(0, precipitation_filter_instances):
 distance_calculator_string = ""
 distance_calculator_dependency_string = ""
 for i in range(0, distance_calculator_instances):
+    health_checker_targets.append(f"distance_calculator_{i}")
     distance_calculator_string = distance_calculator_string + f'''
   distance_calculator_{i}:
     container_name: distance_calculator_{i}
@@ -189,9 +188,7 @@ for i in range(0, distance_calculator_instances):
       - type: bind
         source: ./distance_calculator/middleware_config.yaml
         target: /middleware_config.yaml
-      - type: bind
-        source: ./data/recovery_data/distance_calculator_{i}
-        target: /recovery_files
+      - ./data/recovery_data/distance_calculator_{i}:/recovery_files/
 '''
     distance_calculator_dependency_string = distance_calculator_dependency_string + f'''      - distance_calculator_{i}
 '''
@@ -200,6 +197,7 @@ for i in range(0, distance_calculator_instances):
 year_filter_string = ""
 year_filter_dependency_string = ""
 for i in range(0, year_filter_instances):
+    health_checker_targets.append(f"year_filter_{i}")
     year_filter_string = year_filter_string + f'''
   year_filter_{i}:
     container_name: year_filter_{i}
@@ -219,9 +217,7 @@ for i in range(0, year_filter_instances):
       - type: bind
         source: ./year_filter/middleware_config.yaml
         target: /middleware_config.yaml
-      - type: bind
-        source: ./data/recovery_data/year_filter_{i}
-        target: /recovery_files
+      - ./data/recovery_data/year_filter_{i}:/recovery_files/
 '''
     year_filter_dependency_string = year_filter_dependency_string + f'''      - year_filter_{i}
 '''
@@ -229,6 +225,7 @@ for i in range(0, year_filter_instances):
 weather_joiner_string = ""
 weather_joiner_dependency_string = ""
 for i in range(0, weather_joiner_instances):
+    health_checker_targets.append(f"weather_joiner_{i}")
     weather_joiner_string = weather_joiner_string + f'''
   weather_joiner_{i}:
     container_name: weather_joiner_{i}
@@ -247,9 +244,7 @@ for i in range(0, weather_joiner_instances):
       - type: bind
         source: ./weather_joiner/middleware_config.yaml
         target: /middleware_config.yaml
-      - type: bind
-        source: ./data/recovery_data/weather_joiner_{i}
-        target: /recovery_files
+      - ./data/recovery_data/weather_joiner_{i}:/recovery_files/
 ''' 
     weather_joiner_dependency_string = weather_joiner_dependency_string + f'''      - weather_joiner_{i}
 '''
@@ -257,6 +252,7 @@ for i in range(0, weather_joiner_instances):
 stations_joiner_string = ""
 stations_joiner_dependency_string = ""
 for i in range(0, stations_joiner_instances):
+    health_checker_targets.append(f"stations_joiner_{i}")
     stations_joiner_string = stations_joiner_string + f'''
   stations_joiner_{i}:
     container_name: stations_joiner_{i}
@@ -277,9 +273,7 @@ for i in range(0, stations_joiner_instances):
       - type: bind
         source: ./stations_joiner/middleware_config.yaml
         target: /middleware_config.yaml
-      - type: bind
-        source: ./data/recovery_data/stations_joiner_{i}
-        target: /recovery_files
+      - ./data/recovery_data/stations_joiner_{i}:/recovery_files/
 '''
     stations_joiner_dependency_string = stations_joiner_dependency_string + f'''      - stations_joiner_{i}
 '''
@@ -288,6 +282,7 @@ for i in range(0, stations_joiner_instances):
 data_dropper_string = ""
 data_dropper_dependency_string = ""
 for i in range(0, data_dropper_instances):
+    health_checker_targets.append(f"data_dropper_{i}")
     data_dropper_string = data_dropper_string + f'''
   data_dropper_{i}:
     container_name: data_dropper_{i}
@@ -307,12 +302,40 @@ for i in range(0, data_dropper_instances):
       - type: bind
         source: ./data_dropper/middleware_config.yaml
         target: /middleware_config.yaml
-      - type: bind
-        source: ./data/recovery_data/data_dropper_{i}
-        target: /recovery_files
+      - ./data/recovery_data/data_dropper_{i}:/recovery_files/
 '''
 
     data_dropper_dependency_string = data_dropper_dependency_string + f'''      - data_dropper_{i}
+'''
+
+non_scaled_nodes= ["client_handler","duration_merger","count_merger","distance_merger"]
+health_checker_string = ""
+health_checker_peers = ",".join([ "health_checker_" + str(i) for i in range(health_checker_instances) ])
+health_checker_targets.extend(health_checker_peers.split(","))
+health_checker_targets.extend(non_scaled_nodes)
+health_checker_targets = ",".join(health_checker_targets)
+
+with open("crazy_monkey/targets.csv", "w") as file:
+    file.write(health_checker_targets)
+
+for i in range(0, health_checker_instances):
+    health_checker_string = health_checker_string + f'''
+  health_checker_{i}:
+    container_name: health_checker_{i}
+    environment:
+      - HOSTNAME=health_checker_{i}
+      - PEERS={health_checker_peers}
+      - TARGETS={health_checker_targets}
+    image: health_checker:latest
+    entrypoint: python3 /app/main.py
+    restart: on-failure
+    volumes:
+        - ./health_checker/main.py:/app/main.py
+        - ./health_checker/health_checker.py:/app/health_checker.py
+        - ./health_checker/messaging_protocol.py:/app/messaging_protocol.py
+        - ./health_checker/leader_election/:/app/leader_election/
+        - ./health_checker/replier/replier.py:/app/replier.py
+        - /var/run/docker.sock:/var/run/docker.sock
 '''
 
 file_content = f'''services:
@@ -332,6 +355,7 @@ file_content = f'''services:
     container_name: client_handler
     environment:
       - ID=client_handler
+      - ADDRESS={client_handler_address}
       - MERGER_INSTANCES={merger_instances}
       - DATA_DROPPER_INSTANCES={data_dropper_instances}
       - WEATHER_JOINER_INSTANCES={weather_joiner_instances}
@@ -346,9 +370,7 @@ file_content = f'''services:
       - type: bind
         source: ./client_handler/middleware_config.yaml
         target: /middleware_config.yaml
-      - type: bind
-        source: ./data/recovery_data/client_handler
-        target: /recovery_files
+      - ./data/recovery_data/client_handler:/recovery_files/
 
   {client_string}
 
@@ -369,9 +391,7 @@ file_content = f'''services:
       - type: bind
         source: ./duration_merger/middleware_config.yaml
         target: /middleware_config.yaml
-      - type: bind
-        source: ./data/recovery_data/duration_merger
-        target: /recovery_files
+      - ./data/recovery_data/duration_merger:/recovery_files/
   
   count_merger:
     container_name: count_merger
@@ -392,9 +412,7 @@ file_content = f'''services:
       - type: bind
         source: ./count_merger/middleware_config.yaml
         target: /middleware_config.yaml
-      - type: bind
-        source: ./data/recovery_data/count_merger
-        target: /recovery_files
+      - ./data/recovery_data/count_merger:/recovery_files/
 
   distance_merger:
     container_name: distance_merger
@@ -414,9 +432,7 @@ file_content = f'''services:
       - type: bind
         source: ./distance_merger/middleware_config.yaml
         target: /middleware_config.yaml
-      - type: bind
-        source: ./data/recovery_data/distance_merger
-        target: /recovery_files
+      - ./data/recovery_data/distance_merger:/recovery_files/
 
 {duration_averager_string}        
 {precipitation_filter_string}   
@@ -427,6 +443,7 @@ file_content = f'''services:
 {trip_counter_string}
 {distance_calculator_string}
 {distance_averager_string}
+{health_checker_string}
 '''
 
 f = open("compose.yaml", "w")

@@ -34,18 +34,26 @@ func NewDistanceCalculator(producer *middleware.Producer, consumer *middleware.C
 	}
 }
 
-func (c *DistanceCalculator) Run() {
-	defer c.consumer.Close()
-	defer c.producer.Close()
-
+func (c *DistanceCalculator) Run() error {
 	c.startTime = time.Now()
-	c.consumer.Consume(c.processMessage)
+	err := c.consumer.Consume(c.processMessage)
+	if err != nil {
+		return err
+	}
+	err = c.consumer.Close()
+	if err != nil {
+		return err
+	}
+	err = c.producer.Close()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (c *DistanceCalculator) processMessage(msg message.Message) {
+func (c *DistanceCalculator) processMessage(msg message.Message) error {
 	if msg.IsEOF() {
-		c.producer.PublishMessage(msg, "")
-		return
+		return c.producer.PublishMessage(msg, "")
 	}
 
 	trips := msg.Batch
@@ -54,7 +62,10 @@ func (c *DistanceCalculator) processMessage(msg message.Message) {
 
 	if len(tripsWithDistance) > 0 {
 		tripsWithDistanceBatch := message.NewTripsBatchMessage(msg.ID, msg.ClientID, "", tripsWithDistance)
-		c.producer.PublishMessage(tripsWithDistanceBatch, "")
+		err := c.producer.PublishMessage(tripsWithDistanceBatch, "")
+		if err != nil {
+			return err
+		}
 
 		if c.msgCount%20000 == 0 {
 			fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(c.startTime).String(), msg.ID)
@@ -62,7 +73,7 @@ func (c *DistanceCalculator) processMessage(msg message.Message) {
 	}
 
 	c.msgCount++
-
+	return nil
 }
 
 func (c *DistanceCalculator) calculateDistance(trips []string) []string {

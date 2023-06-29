@@ -31,18 +31,26 @@ func NewPrecipitationFilter(consumer *middleware.Consumer, producer *middleware.
 	}
 }
 
-func (f *PrecipitationFilter) Run() {
-	defer f.consumer.Close()
-	defer f.producer.Close()
+func (f *PrecipitationFilter) Run() error {
 	f.startTime = time.Now()
-
-	f.consumer.Consume(f.processMessage)
+	err := f.consumer.Consume(f.processMessage)
+	if err != nil {
+		return err
+	}
+	err = f.consumer.Close()
+	if err != nil {
+		return err
+	}
+	err = f.producer.Close()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (f *PrecipitationFilter) processMessage(msg message.Message) {
+func (f *PrecipitationFilter) processMessage(msg message.Message) error {
 	if msg.IsEOF() {
-		f.producer.PublishMessage(msg, "")
-		return
+		return f.producer.PublishMessage(msg, "")
 	}
 
 	trips := msg.Batch
@@ -51,7 +59,10 @@ func (f *PrecipitationFilter) processMessage(msg message.Message) {
 
 	if len(filteredTrips) > 0 {
 		filteredTripsBatch := message.NewTripsBatchMessage(msg.ID, msg.ClientID, "", filteredTrips)
-		f.producer.PublishMessage(filteredTripsBatch, "")
+		err := f.producer.PublishMessage(filteredTripsBatch, "")
+		if err != nil {
+			return err
+		}
 
 		if f.msgCount%20000 == 0 {
 			fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(f.startTime).String(), msg.ID)
@@ -59,7 +70,7 @@ func (f *PrecipitationFilter) processMessage(msg message.Message) {
 	}
 
 	f.msgCount++
-
+	return nil
 }
 
 func (f *PrecipitationFilter) filter(trips []string) []string {

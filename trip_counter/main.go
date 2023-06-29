@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"tp1/common/checkreplier"
 	"tp1/common/middleware"
 )
 
@@ -24,14 +25,22 @@ func main() {
 		year2 = defaultYear2
 	}
 
+	replier := checkreplier.NewReplier()
+	if err := replier.Run(); err != nil {
+		log.Fatal(err)
+	}
+
 	consumer, err := middleware.NewConsumer("consumer", "")
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	producer, err := middleware.NewProducer("producer")
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	tripCounter := NewTripCounter(instanceID, year1, year2, consumer, producer)
-	tripCounter.Run()
+	err = tripCounter.Run()
+	if err != nil {
+		log.Panic(err)
+	}
 }

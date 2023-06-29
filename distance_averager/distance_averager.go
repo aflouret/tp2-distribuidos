@@ -41,19 +41,38 @@ func NewDistanceAverager(instanceID string, consumer *middleware.Consumer, produ
 	}
 }
 
-func (a *DistanceAverager) Run() {
-	defer a.consumer.Close()
-	defer a.producer.Close()
-
+func (a *DistanceAverager) Run() error {
 	a.startTime = time.Now()
-	a.consumer.Consume(a.processMessage)
+	err := a.consumer.Consume(a.processMessage)
+	if err != nil {
+		return err
+	}
+	err = a.consumer.Close()
+	if err != nil {
+		return err
+	}
+	err = a.producer.Close()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (a *DistanceAverager) processMessage(msg message.Message) {
+func (a *DistanceAverager) processMessage(msg message.Message) error {
 	if msg.IsEOF() {
-		a.sendResults(msg.ClientID)
-		delete(a.avgDistancesByStation, msg.ClientID)
-		return
+		if msg.MsgType == message.ClientEOF {
+			err := a.producer.PublishMessage(msg, "")
+			if err != nil {
+				return err
+			}
+			if msg.ClientID == message.AllClients {
+				a.avgDistancesByStation = make(map[string]map[string]average)
+			} else {
+				delete(a.avgDistancesByStation, msg.ClientID)
+			}
+			return nil
+		}
+		return a.sendResults(msg.ClientID)
 	}
 
 	a.updateAverage(msg)
@@ -62,6 +81,7 @@ func (a *DistanceAverager) processMessage(msg message.Message) {
 		fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(a.startTime).String(), msg.ID)
 	}
 	a.msgCount++
+	return nil
 }
 
 func (a *DistanceAverager) updateAverage(msg message.Message) {
@@ -91,7 +111,7 @@ func (a *DistanceAverager) updateAverage(msg message.Message) {
 	a.avgDistancesByStation[msg.ClientID] = avgDistancesByStation
 }
 
-func (a *DistanceAverager) sendResults(clientID string) {
+func (a *DistanceAverager) sendResults(clientID string) error {
 	sortedStations := make([]string, 0, len(a.avgDistancesByStation[clientID]))
 	for k := range a.avgDistancesByStation[clientID] {
 		sortedStations = append(sortedStations, k)
@@ -107,11 +127,14 @@ func (a *DistanceAverager) sendResults(clientID string) {
 		batch = append(batch, result)
 		if index%batchSize == 0 || index == len(sortedStations) {
 			msg := message.NewTripsBatchMessage(a.instanceID+"."+strconv.Itoa(batchNumber), clientID, "", batch)
-			a.producer.PublishMessage(msg, "distance_merger")
+			err := a.producer.PublishMessage(msg, "distance_merger")
+			if err != nil {
+				return err
+			}
 			batch = make([]string, 0, batchSize)
 			batchNumber++
 		}
 	}
 	eof := message.NewTripsEOFMessage(clientID)
-	a.producer.PublishMessage(eof, "")
+	return a.producer.PublishMessage(eof, "")
 }

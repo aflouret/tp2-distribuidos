@@ -31,18 +31,26 @@ func NewYearFilter(producer *middleware.Producer, consumer *middleware.Consumer,
 	}
 }
 
-func (f *YearFilter) Run() {
-	defer f.consumer.Close()
-	defer f.producer.Close()
+func (f *YearFilter) Run() error {
 	f.startTime = time.Now()
-
-	f.consumer.Consume(f.processMessage)
+	err := f.consumer.Consume(f.processMessage)
+	if err != nil {
+		return err
+	}
+	err = f.consumer.Close()
+	if err != nil {
+		return err
+	}
+	err = f.producer.Close()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (f *YearFilter) processMessage(msg message.Message) {
+func (f *YearFilter) processMessage(msg message.Message) error {
 	if msg.IsEOF() {
-		f.producer.PublishMessage(msg, "")
-		return
+		return f.producer.PublishMessage(msg, "")
 	}
 	trips := msg.Batch
 
@@ -55,10 +63,14 @@ func (f *YearFilter) processMessage(msg message.Message) {
 	if len(filteredTrips) > 0 {
 		filteredTripsBatch := message.NewTripsBatchMessage(msg.ID, msg.ClientID, "", filteredTrips)
 
-		f.producer.PublishMessage(filteredTripsBatch, "")
+		err := f.producer.PublishMessage(filteredTripsBatch, "")
+		if err != nil {
+			return err
+		}
 	}
 
 	f.msgCount++
+	return nil
 }
 
 func (f *YearFilter) filter(trips []string) []string {

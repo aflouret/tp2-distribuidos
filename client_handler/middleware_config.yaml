@@ -2,6 +2,7 @@ consumer:
   exchange_name: results
   prev_stage_instances_env: MERGER_INSTANCES
   filter_duplicate_batches: true
+  auto_delete: true
   messages_to_store:
     - RE
     - R

@@ -16,6 +16,7 @@ const (
 
 type StorageManager struct {
 	files map[string]*os.File
+	dir   string
 }
 
 func NewStorageManager(dir string) (*StorageManager, error) {
@@ -25,6 +26,7 @@ func NewStorageManager(dir string) (*StorageManager, error) {
 	}
 	return &StorageManager{
 		files: files,
+		dir:   dir,
 	}, nil
 }
 
@@ -40,7 +42,6 @@ func (m *StorageManager) Store(msg message.Message) error {
 	transaction += "COMMIT\n"
 
 	fileName := msg.ClientID
-
 	f, ok := m.files[msg.ClientID]
 	if !ok {
 
@@ -57,27 +58,59 @@ func (m *StorageManager) Store(msg message.Message) error {
 	return f.Sync()
 }
 
-func (m *StorageManager) Close() {
+func (m *StorageManager) Close() error {
 	for _, f := range m.files {
-		_ = f.Close()
+		err := f.Close()
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func Recover(dir string, callback func(msg message.Message)) error {
+func (m *StorageManager) Delete(clientID string) error {
+	if clientID == message.AllClients {
+		for _, f := range m.files {
+			err := f.Close()
+			if err != nil {
+				return err
+			}
+		}
+		_ = os.RemoveAll(m.dir)
+		m.files = make(map[string]*os.File)
+	} else {
+		f := m.files[clientID]
+		err := f.Close()
+		if err != nil {
+			return err
+		}
+		delete(m.files, clientID)
+		_ = os.Remove(m.dir + "/" + clientID)
+	}
+	return nil
+}
+
+func Recover(dir string, callback func(msg message.Message) error) error {
 	files, err := openFiles(dir, os.O_RDWR)
 	if err != nil {
 		return err
 	}
 	for name, f := range files {
-		recoverFile(name, f, callback)
+		err = recoverFile(name, f, callback)
+		if err != nil {
+			return err
+		}
 	}
 	for _, f := range files {
-		_ = f.Close()
+		err = f.Close()
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func recoverFile(name string, f *os.File, callback func(msg message.Message)) {
+func recoverFile(name string, f *os.File, callback func(msg message.Message) error) error {
 	var begin bool
 	var invalidState bool
 	var currentLines []string
@@ -107,7 +140,9 @@ func recoverFile(name string, f *os.File, callback func(msg message.Message)) {
 					break
 				}
 				msg := parseCurrentLines(currentLines, name)
-				callback(msg)
+				if err := callback(msg); err != nil {
+					return err
+				}
 				currentLines = []string{}
 				begin = false
 			case abortTag:
@@ -122,9 +157,16 @@ func recoverFile(name string, f *os.File, callback func(msg message.Message)) {
 		}
 	}
 	if invalidState || begin {
-		f.Write([]byte("\nABORT\n"))
-		f.Sync()
+		_, err := f.Write([]byte("\nABORT\n"))
+		if err != nil {
+			return err
+		}
+		err = f.Sync()
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func parseCurrentLines(lines []string, fileName string) message.Message {

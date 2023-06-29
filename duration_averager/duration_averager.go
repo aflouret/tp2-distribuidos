@@ -41,19 +41,38 @@ func NewDurationAverager(instanceID string, consumer *middleware.Consumer, produ
 	}
 }
 
-func (a *DurationAverager) Run() {
-	defer a.consumer.Close()
-	defer a.producer.Close()
-
+func (a *DurationAverager) Run() error {
 	a.startTime = time.Now()
-	a.consumer.Consume(a.processMessage)
+	err := a.consumer.Consume(a.processMessage)
+	if err != nil {
+		return err
+	}
+	err = a.consumer.Close()
+	if err != nil {
+		return err
+	}
+	err = a.producer.Close()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (a *DurationAverager) processMessage(msg message.Message) {
+func (a *DurationAverager) processMessage(msg message.Message) error {
 	if msg.IsEOF() {
-		a.sendResults(msg.ClientID)
-		delete(a.avgDurationsByDate, msg.ClientID)
-		return
+		if msg.MsgType == message.ClientEOF {
+			err := a.producer.PublishMessage(msg, "")
+			if err != nil {
+				return err
+			}
+			if msg.ClientID == message.AllClients {
+				a.avgDurationsByDate = make(map[string]map[string]average)
+			} else {
+				delete(a.avgDurationsByDate, msg.ClientID)
+			}
+			return nil
+		}
+		return a.sendResults(msg.ClientID)
 	}
 
 	a.updateAverage(msg)
@@ -62,6 +81,7 @@ func (a *DurationAverager) processMessage(msg message.Message) {
 		fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(a.startTime).String(), msg.ID)
 	}
 	a.msgCount++
+	return nil
 }
 
 func (a *DurationAverager) updateAverage(msg message.Message) {
@@ -91,7 +111,7 @@ func (a *DurationAverager) updateAverage(msg message.Message) {
 	a.avgDurationsByDate[msg.ClientID] = avgDurationsByDate
 }
 
-func (a *DurationAverager) sendResults(clientID string) {
+func (a *DurationAverager) sendResults(clientID string) error {
 	sortedDates := make([]string, 0, len(a.avgDurationsByDate[clientID]))
 	for k := range a.avgDurationsByDate[clientID] {
 		sortedDates = append(sortedDates, k)
@@ -107,11 +127,14 @@ func (a *DurationAverager) sendResults(clientID string) {
 		batch = append(batch, result)
 		if index%batchSize == 0 || index == len(sortedDates) {
 			msg := message.NewTripsBatchMessage(a.instanceID+"."+strconv.Itoa(batchNumber), clientID, "", batch)
-			a.producer.PublishMessage(msg, "duration_merger")
+			err := a.producer.PublishMessage(msg, "duration_merger")
+			if err != nil {
+				return err
+			}
 			batch = make([]string, 0, batchSize)
 			batchNumber++
 		}
 	}
 	eof := message.NewTripsEOFMessage(clientID)
-	a.producer.PublishMessage(eof, "")
+	return a.producer.PublishMessage(eof, "")
 }

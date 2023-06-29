@@ -30,6 +30,9 @@ BuildTp(){
       docker build -f ./distance_averager/Dockerfile -t "distance_averager:latest" .
       docker build -f ./trip_counter/Dockerfile -t "trip_counter:latest" .
 
+      # Chcker
+      docker build -f ./health_checker/Dockerfile -t "health_checker:latest" .
+
   fi
 }
 
@@ -49,6 +52,13 @@ RunTp(){
 
         # Show logs
         docker compose -f compose.yaml logs -f
+
+    elif [ "$1" == "monkey" ]; then
+
+      # Temporary container to test the failure prevention
+      docker run --rm --mount type=bind,src="$(PWD)/crazy_monkey/",dst="/app/"\
+                      --mount type=bind,src="/var/run/docker.sock",dst="/var/run/docker.sock"\
+                      -i -t --entrypoint python3 "health_checker:latest" main.py
 
     else
 
@@ -109,8 +119,8 @@ elif [ "$1" == "help" ]; then
     echo ""
     echo "  - build [image]      Buildea todas las imagenes o la imagen especificada."
     echo ""
-    echo "  - run [logs]         Inicia la arquitectura definida en 'composer.py'"
-    echo "                           test: Instancia de netcat conectada a la misma red"
+    echo "  - run [logs|monkey]  Inicia la arquitectura definida en 'create_docker_compose.py'"
+    echo "                           monkey: Subsistema para probar la tolerancia a fallos"
     echo "                           logs: Muestra los logs"
     echo ""
     echo "  - stop [-k]          Detiene los contenedores corriendo"

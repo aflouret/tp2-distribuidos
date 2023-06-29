@@ -1,8 +1,8 @@
 server:
-  address: "client_handler:12345"
+  address: "client_handler:12380"
 log:
   level: "info"
 trips:
-  filename: "trips.csv"
+  filename: "trips-medium.csv"
 batch:
   size: 500

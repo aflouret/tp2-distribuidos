@@ -1,0 +1,54 @@
+name: test-bully
+services:
+
+  bully-3:
+    container_name: bully-3
+    image: python
+    entrypoint: python3 /app/main.py
+    volumes:
+      - ./main.py:/app/main.py
+      - ../:/app/leader_election/
+      - ./leaders.txt:/app/leaders.txt
+    environment:
+      - NODE_ID=3
+      - GROUP_SIZE=4
+    restart: on-failure
+
+  bully-2:
+    container_name: bully-2
+    image: python
+    entrypoint: python3 /app/main.py
+    volumes:
+      - ./main.py:/app/main.py
+      - ../:/app/leader_election/
+      - ./leaders.txt:/app/leaders.txt
+    environment:
+      - NODE_ID=2
+      - GROUP_SIZE=4
+    restart: on-failure
+
+  bully-1:
+    container_name: bully-1
+    image: python
+    entrypoint: python3 /app/main.py
+    volumes:
+      - ./main.py:/app/main.py
+      - ../:/app/leader_election/
+      - ./leaders.txt:/app/leaders.txt
+    environment:
+      - NODE_ID=1
+      - GROUP_SIZE=4
+    restart: on-failure
+
+  bully-0:
+    container_name: bully-0
+    image: python
+    entrypoint: python3 /app/main.py
+    volumes:
+      - ./main.py:/app/main.py
+      - ../:/app/leader_election/
+      - ./leaders.txt:/app/leaders.txt
+    environment:
+      - NODE_ID=0
+      - GROUP_SIZE=4
+    restart: on-failure

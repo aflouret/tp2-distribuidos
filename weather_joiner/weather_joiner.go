@@ -45,28 +45,56 @@ func NewWeatherJoiner(
 	}
 }
 
-func (j *WeatherJoiner) Run() {
-	defer j.producer.Close()
+func (j *WeatherJoiner) Run() error {
 
-	j.consumer.Consume(j.processMessage)
-	j.consumer.Close()
+	err := j.consumer.Consume(j.processMessage)
+	if err != nil {
+		return err
+	}
+	err = j.consumer.Close()
+	if err != nil {
+		return err
+	}
+	err = j.producer.Close()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (j *WeatherJoiner) processMessage(msg message.Message) {
+func (j *WeatherJoiner) processMessage(msg message.Message) error {
 
 	switch msg.MsgType {
 	case message.WeatherBatch, message.WeatherEOF:
-		j.processWeatherMessage(msg)
+		return j.processWeatherMessage(msg)
 	case message.TripsBatch, message.TripsEOF:
-		j.processTripsMessage(msg)
+		return j.processTripsMessage(msg)
+	case message.ClientEOF:
+		return j.processClientEOFMessage(msg)
 	}
+	return nil
 }
 
-func (j *WeatherJoiner) processWeatherMessage(msg message.Message) {
+func (j *WeatherJoiner) processClientEOFMessage(msg message.Message) error {
+	err := j.producer.PublishMessage(msg, "")
+	if err != nil {
+		return err
+	}
+	if msg.ClientID == message.AllClients {
+		j.precipitationsByDateByCity = make(map[string]map[string]map[string]string)
+		j.pendingTrips = make(map[string]map[string][]string)
+		j.weatherEOFs = make(map[string]bool)
+	} else {
+		delete(j.precipitationsByDateByCity, msg.ClientID)
+		delete(j.weatherEOFs, msg.ClientID)
+	}
+	return nil
+}
+
+func (j *WeatherJoiner) processWeatherMessage(msg message.Message) error {
 	if msg.IsEOF() {
 		j.weatherEOFs[msg.ClientID] = true
-		j.processPendingTrips(msg.ClientID)
-		return
+		return j.processPendingTrips(msg.ClientID)
 	}
 
 	if _, ok := j.precipitationsByDateByCity[msg.ClientID]; !ok {
@@ -85,28 +113,31 @@ func (j *WeatherJoiner) processWeatherMessage(msg message.Message) {
 		previousDate, err := getPreviousDate(date)
 		if err != nil {
 			fmt.Printf("error parsing date: %s", err)
-			return
+			return err
 		}
 		j.precipitationsByDateByCity[msg.ClientID][msg.City][previousDate] = precipitations
 	}
+	return nil
 }
 
-func (j *WeatherJoiner) processTripsMessage(msg message.Message) {
+func (j *WeatherJoiner) processTripsMessage(msg message.Message) error {
 	if msg.IsEOF() {
-		j.producer.PublishMessage(msg, "")
-		delete(j.precipitationsByDateByCity, msg.ClientID)
-		return
+		return j.producer.PublishMessage(msg, "")
 	}
 	trips := msg.Batch
 	joinedTrips := j.joinWeather(msg.City, trips, msg.ClientID)
 	if len(joinedTrips) > 0 {
 		joinedTripsBatch := message.NewTripsBatchMessage(msg.ID, msg.ClientID, "", joinedTrips)
-		j.producer.PublishMessage(joinedTripsBatch, "")
+		err := j.producer.PublishMessage(joinedTripsBatch, "")
+		if err != nil {
+			return err
+		}
 		if j.msgCount%20000 == 0 {
 			fmt.Printf("[Client %s] Time: %s Received batch %v\n", msg.ClientID, time.Since(j.startTime).String(), msg.ID)
 		}
 	}
 	j.msgCount++
+	return nil
 }
 
 func (j *WeatherJoiner) joinWeather(city string, trips []string, clientID string) []string {
@@ -148,10 +179,10 @@ func (j *WeatherJoiner) savePendingTrip(clientID string, city string, trip strin
 	j.pendingTrips[clientID][city] = append(j.pendingTrips[clientID][city], trip)
 }
 
-func (j *WeatherJoiner) processPendingTrips(clientID string) {
+func (j *WeatherJoiner) processPendingTrips(clientID string) error {
 	tripsByCity, ok := j.pendingTrips[clientID]
 	if !ok {
-		return
+		return nil
 	}
 	for city, trips := range tripsByCity {
 		fmt.Printf("[Client %s] Processing %v pending trips\n", clientID, len(trips))
@@ -162,11 +193,15 @@ func (j *WeatherJoiner) processPendingTrips(clientID string) {
 			batch = append(batch, trip)
 			if index%batchSize == 0 || index == len(trips) {
 				msg := message.NewTripsBatchMessage("w"+"."+j.instanceID+"."+strconv.Itoa(batchNumber), clientID, city, batch)
-				j.processTripsMessage(msg)
+				err := j.processTripsMessage(msg)
+				if err != nil {
+					return err
+				}
 				batch = make([]string, 0, batchSize)
 				batchNumber++
 			}
 		}
 	}
 	delete(j.pendingTrips, clientID)
+	return nil
 }
