@@ -22,7 +22,7 @@ targets = [x for x in TARGETS if not x == HOSTNAME]
 class CheckerWorker(Worker):
 
     def __init__(self):
-        self.checker = HealthChecker(targets)
+        self.checker = HealthChecker(targets, 10)
 
     def run(self):
         self.checker.run()

@@ -1,7 +1,9 @@
 import concurrent
+import queue
 import socket
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from math import ceil
 from time import sleep
 from messaging_protocol import send, receive, Packet
 import logging as log
@@ -11,7 +13,7 @@ client = docker.from_env()
 
 CHECKER_PORT = 12345
 MSG_SIZE = 128
-CHECKING_INTERVAL = 10
+CHECKING_INTERVAL = 2
 LUTO_TIME = 10
 CONNECTION_RETRIES = 3
 CONNETION_RETRY_BASE_TIME = 1
@@ -28,23 +30,53 @@ TARGET_ERRORS = (ConnectionError, TimeoutError, socket.gaierror)
 
 class HealthChecker:
 
-    def __init__(self, targets):
+    def __init__(self, targets, workers):
         self.targets = targets
         self.running = False
+        self.workers = workers
 
     def run(self):
 
         self.running = True
-        thread_poll = []
+        thread_pool = []
 
-        # Connect stage
-        for hostname in self.targets:
-            t = threading.Thread(target=self.handle_node, args=[hostname])
+        load = ceil(len(self.targets)/self.workers)
+
+        for i in range(self.workers):
+            from_idx = i*load
+            to_idx = min((i+1)*load, len(self.targets))
+
+            partition = self.targets[from_idx:to_idx]
+            t = threading.Thread(target=self.process_tasks, args=[partition])
             t.start()
-            thread_poll.append(t)
+            thread_pool.append(t)
 
-        for t in thread_poll:
+        for t in thread_pool:
             t.join()
+
+    def process_tasks(self, list_of_hosts):
+
+        q = queue.Queue()
+        for x in list_of_hosts:
+            q.put((x, None))
+
+        while self.running:
+
+            target, s = q.get()
+            if not s:
+                s = self.connect_to(target)
+
+            success = s and self.do_ping(s, target)
+            if not success:
+                s = self.bring_to_live(target)
+
+            q.put((target, s))
+            sleep(CHECKING_INTERVAL)
+
+        while not q.empty():
+            target, s = q.get()
+            if s:
+                s.close()
 
     def handle_node(self, hostname):
 
