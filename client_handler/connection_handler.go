@@ -140,12 +140,15 @@ func (h *ConnectionHandler) handleTrips(city string) error {
 }
 
 func (h *ConnectionHandler) readBatchesAndSend(city string, endMessageType uint8, batchMessageType string, startTime time.Time) error {
+	messageCounter := 1
+	currentBatch := make([]string, 0, 2000)
 	for {
 		select {
 		case <-h.sigtermNotifier:
 			return nil
 		default:
 		}
+
 		msg, err := protocol.Recv(h.conn)
 		if err != nil {
 			fmt.Printf("[CLIENT %s] Error reading from connection: %v\n", h.id, err)
@@ -156,6 +159,17 @@ func (h *ConnectionHandler) readBatchesAndSend(city string, endMessageType uint8
 				fmt.Printf("[CLIENT %s] Received invalid message: %v, \n", h.id, msg.Type)
 				return err
 			}
+
+			if len(currentBatch) > 0 {
+				batchID := strconv.Itoa(h.batchCounter)
+				batchMsg := message.NewBatchMessage(batchMessageType, batchID, h.id, city, currentBatch)
+				err = h.producer.PublishMessage(batchMsg, "")
+				if err != nil {
+					return err
+				}
+				h.batchCounter++
+			}
+
 			return protocol.Send(h.conn, protocol.Message{Type: protocol.Ack, Payload: ""})
 
 		}
@@ -163,17 +177,24 @@ func (h *ConnectionHandler) readBatchesAndSend(city string, endMessageType uint8
 		if err != nil {
 			return err
 		}
-		batchID := strconv.Itoa(h.batchCounter)
+
 		lines := strings.Split(msg.Payload, ";")
-		batchMsg := message.NewBatchMessage(batchMessageType, batchID, h.id, city, lines)
-		err = h.producer.PublishMessage(batchMsg, "")
-		if err != nil {
-			return err
+		currentBatch = append(currentBatch, lines...)
+		if messageCounter%4 == 0 {
+			batchID := strconv.Itoa(h.batchCounter)
+			batchMsg := message.NewBatchMessage(batchMessageType, batchID, h.id, city, currentBatch)
+			err = h.producer.PublishMessage(batchMsg, "")
+			if err != nil {
+				return err
+			}
+
+			h.batchCounter++
+			currentBatch = make([]string, 0, 2000)
 		}
-		if h.batchCounter%10000 == 0 {
-			fmt.Printf("[CLIENT %s] Time: %s Received batch %s\n", h.id, time.Since(startTime).String(), batchID)
+		if messageCounter%10000 == 0 {
+			fmt.Printf("[CLIENT %s] Time: %s Received batch %v\n", h.id, time.Since(startTime).String(), messageCounter)
 		}
-		h.batchCounter++
+		messageCounter++
 	}
 }
 

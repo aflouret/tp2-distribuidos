@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/viper"
 	"os"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"syscall"
 	"tp1/common/message"
@@ -17,11 +18,12 @@ type Consumer struct {
 	conn           *amqp.Connection
 	ch             *amqp.Channel
 	msgChannel     <-chan amqp.Delivery
-	eofsReceived   map[string]map[string]map[string]bool
-	msgIDsReceived map[string]map[string]bool
+	eofsReceived   map[string]map[string]map[string]struct{}
+	msgIDsReceived map[string]map[string]struct{}
 	config         ConsumerConfig
 	sigtermChannel chan os.Signal
 	queueName      string
+	msgCount       int
 }
 
 type ConsumerConfig struct {
@@ -165,8 +167,8 @@ func NewConsumer(configID string, routingKey string) (*Consumer, error) {
 	sigtermChannel := make(chan os.Signal, 1)
 	signal.Notify(sigtermChannel, syscall.SIGTERM)
 
-	eofsReceived := make(map[string]map[string]map[string]bool)
-	msgIDsReceived := make(map[string]map[string]bool)
+	eofsReceived := make(map[string]map[string]map[string]struct{})
+	msgIDsReceived := make(map[string]map[string]struct{})
 	return &Consumer{
 		conn:           conn,
 		ch:             ch,
@@ -189,7 +191,10 @@ func (c *Consumer) Consume(processMessage func(message.Message) error) error {
 			} else {
 				_, err = c.processBatchMessage(msg, processMessage)
 			}
-			return fmt.Errorf("error processing message %v, %w", msg, err)
+			if err != nil {
+				return fmt.Errorf("error processing message %v, %w", msg, err)
+			}
+			return nil
 		})
 		if err != nil {
 			return fmt.Errorf("error recovering: %w", err)
@@ -265,20 +270,20 @@ func (c *Consumer) Close() error {
 func (c *Consumer) processEOF(msg message.Message, processMessage func(message.Message) error) (isDuplicateMessage bool, err error) {
 	// Allocate map for client and type if it does not exist
 	if _, ok := c.eofsReceived[msg.ClientID]; !ok {
-		c.eofsReceived[msg.ClientID] = make(map[string]map[string]bool)
+		c.eofsReceived[msg.ClientID] = make(map[string]map[string]struct{})
 	}
 	if _, ok := c.eofsReceived[msg.ClientID][msg.MsgType]; !ok {
-		c.eofsReceived[msg.ClientID][msg.MsgType] = make(map[string]bool)
+		c.eofsReceived[msg.ClientID][msg.MsgType] = make(map[string]struct{}, 15000)
 	}
 
 	// If the message was already received, do nothing
-	if received := c.eofsReceived[msg.ClientID][msg.MsgType][msg.ID]; received {
+	if _, received := c.eofsReceived[msg.ClientID][msg.MsgType][msg.ID]; received {
 		fmt.Printf("[Client %s] Received duplicate %v EOF: %v\n", msg.ClientID, msg.MsgType, msg.ID)
 		return true, nil
 	}
 
 	// Register EOF in map
-	c.eofsReceived[msg.ClientID][msg.MsgType][msg.ID] = true
+	c.eofsReceived[msg.ClientID][msg.MsgType][msg.ID] = struct{}{}
 	fmt.Printf("[Client %s] Received %s %v of %v \n", msg.ClientID, msg.MsgType, len(c.eofsReceived[msg.ClientID][msg.MsgType]), c.config.previousStageInstances)
 
 	// If it is the last EOF then process it
@@ -296,17 +301,18 @@ func (c *Consumer) processBatchMessage(msg message.Message, processMessage func(
 	if c.shouldFilterDuplicates() {
 		// Allocate map for client if it does not exist
 		if _, ok := c.msgIDsReceived[msg.ClientID]; !ok {
-			c.msgIDsReceived[msg.ClientID] = make(map[string]bool)
+			c.msgIDsReceived[msg.ClientID] = make(map[string]struct{})
 		}
 
 		// If the message was already received, do nothing
-		if received := c.msgIDsReceived[msg.ClientID][msg.ID]; received {
+		if _, received := c.msgIDsReceived[msg.ClientID][msg.ID]; received {
 			fmt.Printf("[Client %s] Received duplicate message: %v\n", msg.ClientID, msg.ID)
 			return true, nil
 		}
 
 		// Register and process message
-		c.msgIDsReceived[msg.ClientID][msg.ID] = true
+		c.msgIDsReceived[msg.ClientID][msg.ID] = struct{}{}
+		runtime.GC()
 	}
 	err = processMessage(msg)
 	if err != nil {
@@ -346,8 +352,8 @@ func (c *Consumer) isResultsConsumer() bool {
 
 func (c *Consumer) deleteResources(clientID string) {
 	if clientID == message.AllClients {
-		c.eofsReceived = make(map[string]map[string]map[string]bool)
-		c.msgIDsReceived = make(map[string]map[string]bool)
+		c.eofsReceived = make(map[string]map[string]map[string]struct{})
+		c.msgIDsReceived = make(map[string]map[string]struct{})
 	} else {
 		delete(c.eofsReceived, clientID)
 		delete(c.msgIDsReceived, clientID)

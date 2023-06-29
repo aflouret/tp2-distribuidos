@@ -35,7 +35,7 @@ class CrazyMonkey:
 
         try:
             container = client.containers.get(name)
-            container.stop(timeout=1)
+            container.kill()
             print(f"CrazyMonkey | {name} was knocked down!")
 
         except Exception as e:
