@@ -34,35 +34,45 @@ class HealthChecker:
         self.targets = targets
         self.running = False
         self.workers = workers
+        self.mutex = threading.Lock()
+        self.queue = queue.Queue()
+
+        for x in targets:
+            self.queue.put((x, None))
 
     def run(self):
 
         self.running = True
         thread_pool = []
 
-        load = ceil(len(self.targets)/self.workers)
-
+        # Spawn workers
         for i in range(self.workers):
-            from_idx = i*load
-            to_idx = min((i+1)*load, len(self.targets))
-
-            partition = self.targets[from_idx:to_idx]
-            t = threading.Thread(target=self.process_tasks, args=[partition])
+            t = threading.Thread(target=self.process_tasks)
             t.start()
             thread_pool.append(t)
 
         for t in thread_pool:
             t.join()
 
-    def process_tasks(self, list_of_hosts):
+        while not self.queue.empty():
+            target, s = self.get_task()
+            if s:
+                s.close()
 
-        q = queue.Queue()
-        for x in list_of_hosts:
-            q.put((x, None))
+    def get_task(self):
+        with self.mutex:
+            value = self.queue.get()
+        return value
+
+    def put_task(self, value):
+        with self.mutex:
+            self.queue.put(value)
+
+    def process_tasks(self):
 
         while self.running:
 
-            target, s = q.get()
+            target, s = self.get_task()
             if not s:
                 s = self.connect_to(target)
 
@@ -70,28 +80,8 @@ class HealthChecker:
             if not success:
                 s = self.bring_to_live(target)
 
-            q.put((target, s))
+            self.put_task((target, s))
             sleep(CHECKING_INTERVAL)
-
-        while not q.empty():
-            target, s = q.get()
-            if s:
-                s.close()
-
-    def handle_node(self, hostname):
-
-        s = self.connect_to(hostname)
-        while self.running:
-
-            success = s and self.do_ping(s, hostname)
-
-            if not success:
-                s = self.bring_to_live(hostname)
-
-            sleep(CHECKING_INTERVAL)
-
-        if s:
-            s.close()
 
     def bring_to_live(self, name):
 

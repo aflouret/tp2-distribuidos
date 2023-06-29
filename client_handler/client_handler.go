@@ -91,8 +91,8 @@ func (h *ClientHandler) Run() {
 		}
 
 		go func() {
-			defer sem.Release(1)
 			handleConnection(conn)
+			sem.Release(1)
 		}()
 	}
 }
