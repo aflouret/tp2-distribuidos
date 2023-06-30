@@ -25,7 +25,7 @@ OP_CODE_PING = 1
 OP_CODE_PONG = 2
 
 # Errors that are considered as a failure indicator
-TARGET_ERRORS = (ConnectionError, TimeoutError, socket.gaierror)
+TARGET_ERRORS = (ConnectionError, TimeoutError, socket.gaierror, OSError)
 
 
 class HealthChecker:
@@ -72,15 +72,22 @@ class HealthChecker:
 
         while self.running:
 
-            target, s = self.get_task()
-            if not s:
-                s = self.connect_to(target)
+            target, s = None, None
 
-            success = s and self.do_ping(s, target)
-            if not success:
-                s = self.bring_to_live(target)
+            try:
+                target, s = self.get_task()
+                if not s:
+                    s = self.connect_to(target)
 
-            self.put_task((target, s))
+                success = s and self.do_ping(s, target)
+                if not success:
+                    s = self.bring_to_live(target)
+            except Exception as e:
+                print(f"HealthChecker | Unexpected error: {e}")
+
+            if target:
+                self.put_task((target, s))
+
             sleep(CHECKING_INTERVAL)
 
     def bring_to_live(self, name):
