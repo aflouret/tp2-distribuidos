@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/viper"
 	"os"
 	"os/signal"
-	"runtime"
 	"strconv"
 	"syscall"
 	"tp1/common/message"
@@ -15,15 +14,15 @@ import (
 )
 
 type Consumer struct {
-	conn           *amqp.Connection
-	ch             *amqp.Channel
-	msgChannel     <-chan amqp.Delivery
-	eofsReceived   map[string]map[string]map[string]struct{}
-	msgIDsReceived map[string]map[string]struct{}
-	config         ConsumerConfig
-	sigtermChannel chan os.Signal
-	queueName      string
-	msgCount       int
+	conn                  *amqp.Connection
+	ch                    *amqp.Channel
+	msgChannel            <-chan amqp.Delivery
+	eofsReceived          map[string]map[string]map[string]struct{}
+	lastMessageIDReceived map[string][]string
+	config                ConsumerConfig
+	sigtermChannel        chan os.Signal
+	queueName             string
+	msgCount              int
 }
 
 type ConsumerConfig struct {
@@ -143,7 +142,7 @@ func NewConsumer(configID string, routingKey string) (*Consumer, error) {
 	fmt.Println("Queue bound")
 
 	err = ch.Qos(
-		10000, // prefetch count
+		1,     // prefetch count
 		0,     // prefetch size
 		false, // global
 	)
@@ -168,16 +167,16 @@ func NewConsumer(configID string, routingKey string) (*Consumer, error) {
 	signal.Notify(sigtermChannel, syscall.SIGTERM)
 
 	eofsReceived := make(map[string]map[string]map[string]struct{})
-	msgIDsReceived := make(map[string]map[string]struct{})
+	lastMessageIDsReceived := make(map[string][]string)
 	return &Consumer{
-		conn:           conn,
-		ch:             ch,
-		msgChannel:     msgs,
-		eofsReceived:   eofsReceived,
-		msgIDsReceived: msgIDsReceived,
-		config:         config,
-		sigtermChannel: sigtermChannel,
-		queueName:      queueName,
+		conn:                  conn,
+		ch:                    ch,
+		msgChannel:            msgs,
+		eofsReceived:          eofsReceived,
+		lastMessageIDReceived: lastMessageIDsReceived,
+		config:                config,
+		sigtermChannel:        sigtermChannel,
+		queueName:             queueName,
 	}, nil
 }
 
@@ -186,10 +185,16 @@ func (c *Consumer) Consume(processMessage func(message.Message) error) error {
 		fmt.Println("Recovering state")
 		err := recovery.Recover("recovery_files", func(msg message.Message) error {
 			var err error
-			if msg.IsEOF() {
-				_, err = c.processEOF(msg, processMessage, true)
-			} else {
-				_, err = c.processBatchMessage(msg, processMessage)
+			if _, ok := c.lastMessageIDReceived[msg.ClientID]; !ok {
+				c.lastMessageIDReceived[msg.ClientID] = make([]string, c.config.previousStageInstances)
+			}
+			c.lastMessageIDReceived[msg.ClientID][msg.InstanceID] = getMessageIDForDuplicateFilter(msg)
+			if c.shouldStoreData(msg) {
+				if msg.IsEOF() {
+					err = c.processEOF(msg, processMessage, true)
+				} else {
+					err = processMessage(msg)
+				}
 			}
 			if err != nil {
 				return fmt.Errorf("error processing message %v, %w", msg, err)
@@ -213,27 +218,35 @@ func (c *Consumer) Consume(processMessage func(message.Message) error) error {
 			// Deserialize message
 			msg := message.Deserialize(string(delivery.Body))
 
-			// Process message and check for duplicates
-			var isDuplicateMessage bool
+			// Check if message is duplicate
+			isDuplicateMessage := c.filterDuplicates(msg)
+
+			// If it is a duplicate message, send ACK and continue to next message
+			if isDuplicateMessage {
+				err = delivery.Ack(false)
+				if err != nil {
+					return fmt.Errorf("error ACKing message %v, %w", msg, err)
+				}
+				continue
+			}
+
+			// Process message
 			if msg.IsEOF() {
-				isDuplicateMessage, err = c.processEOF(msg, processMessage, false)
+				err = c.processEOF(msg, processMessage, false)
 			} else {
-				isDuplicateMessage, err = c.processBatchMessage(msg, processMessage)
+				err = processMessage(msg)
 			}
 			if err != nil {
 				return fmt.Errorf("error processing message %v, %w", msg, err)
 			}
 
-			// Store message if necessary
-			if c.shouldStore(msg) && !isDuplicateMessage {
-				err := storageManager.Store(msg)
-				if err != nil {
-					return fmt.Errorf("error storing message %v, %w", msg, err)
-				}
+			// Store message
+			err := storageManager.Store(msg, c.shouldStoreData(msg))
+			if err != nil {
+				return fmt.Errorf("error storing message %v, %w", msg, err)
 			}
 
-			// ACK message
-			err := delivery.Ack(false)
+			err = delivery.Ack(false)
 			if err != nil {
 				return fmt.Errorf("error ACKing message %v, %w", msg, err)
 			}
@@ -245,7 +258,7 @@ func (c *Consumer) Consume(processMessage func(message.Message) error) error {
 
 			if msg.MsgType == message.ClientEOF && c.receivedAllEOFs(msg.ClientID, msg.MsgType) {
 				// Delete files and maps allocated for client
-				err := storageManager.Delete(msg.ClientID)
+				err = storageManager.Delete(msg.ClientID)
 				if err != nil {
 					return fmt.Errorf("error deleting resources: %w", err)
 				}
@@ -267,7 +280,26 @@ func (c *Consumer) Close() error {
 	return nil
 }
 
-func (c *Consumer) processEOF(msg message.Message, processMessage func(message.Message) error, recovery bool) (isDuplicateMessage bool, err error) {
+func (c *Consumer) filterDuplicates(msg message.Message) bool {
+	// Allocate map for client if it does not exist
+	if _, ok := c.lastMessageIDReceived[msg.ClientID]; !ok {
+		c.lastMessageIDReceived[msg.ClientID] = make([]string, c.config.previousStageInstances)
+	}
+
+	messageID := getMessageIDForDuplicateFilter(msg)
+	if c.lastMessageIDReceived[msg.ClientID][msg.InstanceID] == messageID {
+		fmt.Println("duplicate message", messageID, msg.ClientID)
+		return true
+	}
+	c.lastMessageIDReceived[msg.ClientID][msg.InstanceID] = messageID
+	return false
+}
+
+func getMessageIDForDuplicateFilter(msg message.Message) string {
+	return msg.MsgType + "." + msg.ID
+}
+
+func (c *Consumer) processEOF(msg message.Message, processMessage func(message.Message) error, recovery bool) error {
 	// Allocate map for client and type if it does not exist
 	if _, ok := c.eofsReceived[msg.ClientID]; !ok {
 		c.eofsReceived[msg.ClientID] = make(map[string]map[string]struct{})
@@ -279,7 +311,7 @@ func (c *Consumer) processEOF(msg message.Message, processMessage func(message.M
 	// If the message was already received, do nothing
 	if _, received := c.eofsReceived[msg.ClientID][msg.MsgType][msg.ID]; received {
 		fmt.Printf("[Client %s] Received duplicate %v EOF: %v\n", msg.ClientID, msg.MsgType, msg.ID)
-		return true, nil
+		return nil
 	}
 
 	// Register EOF in map
@@ -289,43 +321,19 @@ func (c *Consumer) processEOF(msg message.Message, processMessage func(message.M
 	// If it is the last EOF then process it
 	if c.receivedAllEOFs(msg.ClientID, msg.MsgType) && (!recovery || msg.MsgType == message.StationsEOF || msg.MsgType == message.WeatherEOF) {
 		fmt.Printf("[Client %s] Received all %s eofs\n", msg.ClientID, msg.MsgType)
-		err = processMessage(msg)
+		err := processMessage(msg)
 		if err != nil {
-			return false, err
+			return err
 		}
 	}
-	return false, nil
-}
-
-func (c *Consumer) processBatchMessage(msg message.Message, processMessage func(message.Message) error) (isDuplicateMessage bool, err error) {
-	if c.shouldFilterDuplicates() {
-		// Allocate map for client if it does not exist
-		if _, ok := c.msgIDsReceived[msg.ClientID]; !ok {
-			c.msgIDsReceived[msg.ClientID] = make(map[string]struct{}, 15000)
-		}
-
-		// If the message was already received, do nothing
-		if _, received := c.msgIDsReceived[msg.ClientID][msg.ID]; received {
-			fmt.Printf("[Client %s] Received duplicate message: %v\n", msg.ClientID, msg.ID)
-			return true, nil
-		}
-
-		// Register and process message
-		c.msgIDsReceived[msg.ClientID][msg.ID] = struct{}{}
-		runtime.GC()
-	}
-	err = processMessage(msg)
-	if err != nil {
-		return false, err
-	}
-	return false, nil
+	return nil
 }
 
 func (c *Consumer) receivedAllEOFs(clientID string, msgType string) bool {
 	return len(c.eofsReceived[clientID][msgType]) == c.config.previousStageInstances
 }
 
-func (c *Consumer) shouldStore(msg message.Message) bool {
+func (c *Consumer) shouldStoreData(msg message.Message) bool {
 	if msg.MsgType == message.ClientEOF && msg.ClientID != message.AllClients {
 		return true
 	}
@@ -335,10 +343,6 @@ func (c *Consumer) shouldStore(msg message.Message) bool {
 		}
 	}
 	return false
-}
-
-func (c *Consumer) shouldFilterDuplicates() bool {
-	return c.config.filterDuplicates
 }
 
 func (c *Consumer) isResultsConsumer() bool {
@@ -353,9 +357,9 @@ func (c *Consumer) isResultsConsumer() bool {
 func (c *Consumer) deleteResources(clientID string) {
 	if clientID == message.AllClients {
 		c.eofsReceived = make(map[string]map[string]map[string]struct{})
-		c.msgIDsReceived = make(map[string]map[string]struct{})
+		c.lastMessageIDReceived = make(map[string][]string)
 	} else {
 		delete(c.eofsReceived, clientID)
-		delete(c.msgIDsReceived, clientID)
+		delete(c.lastMessageIDReceived, clientID)
 	}
 }

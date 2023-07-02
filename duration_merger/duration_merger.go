@@ -119,7 +119,7 @@ func (m *DurationMerger) sendResults(clientID string) error {
 		result += fmt.Sprintf("%s,%.6f\n", date, avg)
 	}
 
-	msg := message.NewResultsBatchMessage("duration_merger", clientID, []string{result})
+	msg := message.NewResultsBatchMessage("0", clientID, []string{result})
 	err := m.producer.PublishMessage(msg, msg.ClientID)
 	if err != nil {
 		return err

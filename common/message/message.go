@@ -1,6 +1,9 @@
 package message
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 const (
 	TripsBatch    = "T"
@@ -17,11 +20,12 @@ const (
 const AllClients = "all"
 
 type Message struct {
-	MsgType  string
-	ID       string
-	ClientID string
-	City     string
-	Batch    []string
+	MsgType    string
+	ID         string
+	ClientID   string
+	City       string
+	Batch      []string
+	InstanceID int
 }
 
 func NewBatchMessage(msgType string, id string, clientID string, city string, trips []string) Message {
@@ -93,23 +97,25 @@ func Deserialize(batch string) Message {
 	batchType := strings.Split(batchFields[0], ",")[0]
 	id := strings.Split(batchFields[0], ",")[1]
 	clientID := strings.Split(batchFields[0], ",")[2]
+	instanceID, _ := strconv.Atoi(strings.Split(batchFields[0], ",")[3])
 	var city string
 	var lines []string
 	if batchType == WeatherBatch || batchType == StationsBatch || batchType == TripsBatch || batchType == ResultsBatch {
-		city = strings.Split(batchFields[0], ",")[3]
+		city = strings.Split(batchFields[0], ",")[4]
 		lines = strings.Split(batchFields[1], ";")
 	}
 	return Message{
-		MsgType:  batchType,
-		ID:       id,
-		ClientID: clientID,
-		City:     city,
-		Batch:    lines,
+		MsgType:    batchType,
+		ID:         id,
+		ClientID:   clientID,
+		City:       city,
+		Batch:      lines,
+		InstanceID: instanceID,
 	}
 }
 
 func Serialize(m Message) string {
-	batch := m.MsgType + "," + m.ID + "," + m.ClientID + "," + m.City + "%" + strings.Join(m.Batch, ";")
+	batch := m.MsgType + "," + m.ID + "," + m.ClientID + "," + strconv.Itoa(m.InstanceID) + "," + m.City + "%" + strings.Join(m.Batch, ";")
 	return strings.TrimSuffix(batch, ";")
 }
 

@@ -127,7 +127,7 @@ func (a *DurationAverager) sendResults(clientID string) error {
 		batch = append(batch, result)
 		if index%batchSize == 0 || index == len(sortedDates) {
 			msg := message.NewTripsBatchMessage(a.instanceID+"."+strconv.Itoa(batchNumber), clientID, "", batch)
-			err := a.producer.PublishMessage(msg, "duration_merger")
+			err := a.producer.PublishMessage(msg, "0")
 			if err != nil {
 				return err
 			}

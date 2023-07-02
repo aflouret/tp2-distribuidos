@@ -22,7 +22,7 @@ type ProducerConfig struct {
 	exchangeName       string
 	nextStageInstances int
 	routeByID          bool
-	instanceID         string
+	instanceID         int
 }
 
 func newProducerConfig(configID string) (ProducerConfig, error) {
@@ -39,7 +39,10 @@ func newProducerConfig(configID string) (ProducerConfig, error) {
 		nextStageInstances = 1
 	}
 	connectionString := os.Getenv("RABBITMQ_CONNECTION_STRING")
-	instanceID := os.Getenv("ID")
+	instanceID, err := strconv.Atoi(os.Getenv("ID"))
+	if err != nil {
+		return ProducerConfig{}, fmt.Errorf("invalid instance ID, %w", err)
+	}
 	return ProducerConfig{
 		connectionString:   connectionString,
 		exchangeName:       exchangeName,
@@ -87,8 +90,10 @@ func (p *Producer) PublishMessage(msg message.Message, routingKey string) error 
 		}
 	}
 	if msg.IsEOF() {
-		msg.ID = p.config.instanceID
+		msg.ID = strconv.Itoa(p.config.instanceID)
 	}
+
+	msg.InstanceID = p.config.instanceID
 
 	err = p.ch.PublishWithContext(context.TODO(),
 		p.config.exchangeName,

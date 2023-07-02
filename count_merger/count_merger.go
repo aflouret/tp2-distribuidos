@@ -139,7 +139,7 @@ func (m *CountMerger) sendResults(clientID string) error {
 		}
 	}
 
-	msg := message.NewResultsBatchMessage("count_merger", clientID, []string{result})
+	msg := message.NewResultsBatchMessage("1", clientID, []string{result})
 	err := m.producer.PublishMessage(msg, msg.ClientID)
 	if err != nil {
 		return err

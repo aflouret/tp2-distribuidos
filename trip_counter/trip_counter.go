@@ -142,7 +142,7 @@ func (c *TripCounter) sendResults(clientID string) error {
 		batch = append(batch, result)
 		if index%batchSize == 0 || index == len(sortedStationsYear1) {
 			msg := message.NewTripsBatchMessage(c.instanceID+"."+strconv.Itoa(batchNumber), clientID, "", batch)
-			err := c.producer.PublishMessage(msg, "count_merger")
+			err := c.producer.PublishMessage(msg, "1")
 			if err != nil {
 				return err
 			}
@@ -158,7 +158,7 @@ func (c *TripCounter) sendResults(clientID string) error {
 		batch = append(batch, result)
 		if index%batchSize == 0 || index == len(sortedStationsYear2) {
 			msg := message.NewTripsBatchMessage(c.instanceID+"."+strconv.Itoa(batchNumber), clientID, "", batch)
-			err := c.producer.PublishMessage(msg, "count_merger")
+			err := c.producer.PublishMessage(msg, "1")
 			if err != nil {
 				return err
 			}

@@ -3,15 +3,16 @@ module tp1
 go 1.19
 
 require (
+	github.com/google/uuid v1.3.0
 	github.com/rabbitmq/amqp091-go v1.8.0
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/viper v1.15.0
 	github.com/umahmood/haversine v0.0.0-20151105152445-808ab04add26
+	golang.org/x/sync v0.1.0
 )
 
 require (
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
-	github.com/google/uuid v1.3.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect

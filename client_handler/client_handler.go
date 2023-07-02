@@ -99,6 +99,7 @@ func handleConnection(conn net.Conn) {
 	err := h.Run()
 	if err != nil {
 		fmt.Printf("Connection %s ended with error: %s\n", h.id, err)
+		h.Close()
 		return
 	}
 	err = h.Close()

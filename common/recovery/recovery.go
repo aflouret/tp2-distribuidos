@@ -3,6 +3,7 @@ package recovery
 import (
 	"bufio"
 	"os"
+	"strconv"
 	"strings"
 	"tp1/common/message"
 )
@@ -30,11 +31,12 @@ func NewStorageManager(dir string) (*StorageManager, error) {
 	}, nil
 }
 
-func (m *StorageManager) Store(msg message.Message) error {
+func (m *StorageManager) Store(msg message.Message, shouldStoreData bool) error {
 	var err error
 	var transaction string
-	transaction += "BEGIN " + msg.MsgType + "," + msg.ID + "," + msg.City + "\n"
-	if !msg.IsEOF() {
+	instanceID := strconv.Itoa(msg.InstanceID)
+	transaction += "BEGIN " + msg.MsgType + "," + msg.ID + "," + instanceID + "," + msg.City + "\n"
+	if !msg.IsEOF() && shouldStoreData {
 		for _, line := range msg.Batch {
 			transaction += "W " + line + "\n"
 		}
@@ -170,7 +172,7 @@ func recoverFile(name string, f *os.File, callback func(msg message.Message) err
 }
 
 func parseCurrentLines(lines []string, fileName string) message.Message {
-	msgType, msgID, city := parseBeginLine(lines[0])
+	msgType, msgID, instanceIDString, city := parseBeginLine(lines[0])
 
 	var msgLines []string
 	for _, line := range lines[1:] {
@@ -178,21 +180,24 @@ func parseCurrentLines(lines []string, fileName string) message.Message {
 		msgLines = append(msgLines, msgLine)
 	}
 
+	instanceID, _ := strconv.Atoi(instanceIDString)
 	return message.Message{
-		MsgType:  msgType,
-		ID:       msgID,
-		ClientID: fileName,
-		City:     city,
-		Batch:    msgLines,
+		MsgType:    msgType,
+		ID:         msgID,
+		ClientID:   fileName,
+		City:       city,
+		Batch:      msgLines,
+		InstanceID: instanceID,
 	}
 }
 
-func parseBeginLine(line string) (msgType string, msgID string, city string) {
+func parseBeginLine(line string) (msgType string, msgID string, instanceID string, city string) {
 	tagAndData := strings.Split(line, " ")
 	dataFields := strings.Split(tagAndData[1], ",")
 	msgType = dataFields[0]
 	msgID = dataFields[1]
-	city = dataFields[2]
+	instanceID = dataFields[2]
+	city = dataFields[3]
 	return
 }
 

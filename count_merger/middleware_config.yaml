@@ -1,7 +1,6 @@
 consumer:
   exchange_name: count_merger
   prev_stage_instances_env: PREV_STAGE_INSTANCES
-  filter_duplicate_batches: true
   messages_to_store:
     - TE
     - T

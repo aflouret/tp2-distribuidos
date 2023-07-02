@@ -124,7 +124,7 @@ func (m *DistanceMerger) sendResults(clientID string) error {
 			result += fmt.Sprintf("%s,%.6f\n", s, avg)
 		}
 	}
-	msg := message.NewResultsBatchMessage("distance_merger", clientID, []string{result})
+	msg := message.NewResultsBatchMessage("2", clientID, []string{result})
 	err := m.producer.PublishMessage(msg, msg.ClientID)
 	if err != nil {
 		return err

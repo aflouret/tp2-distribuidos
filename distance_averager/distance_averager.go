@@ -127,7 +127,7 @@ func (a *DistanceAverager) sendResults(clientID string) error {
 		batch = append(batch, result)
 		if index%batchSize == 0 || index == len(sortedStations) {
 			msg := message.NewTripsBatchMessage(a.instanceID+"."+strconv.Itoa(batchNumber), clientID, "", batch)
-			err := a.producer.PublishMessage(msg, "distance_merger")
+			err := a.producer.PublishMessage(msg, "2")
 			if err != nil {
 				return err
 			}

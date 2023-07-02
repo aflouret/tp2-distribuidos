@@ -1,4 +1,4 @@
-# TP1: Bike Rides Analyzer
+# TP2: Bike Rides Analyzer
 
 ## Instrucciones
 
