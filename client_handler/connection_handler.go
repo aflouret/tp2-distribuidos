@@ -222,10 +222,17 @@ func (h *ConnectionHandler) handleResults() error {
 	if err != nil {
 		return err
 	}
+	receivedResults := make([]string, 3)
 	return h.resultsConsumer.Consume(func(msg message.Message) error {
 		if msg.IsEOF() {
 			return nil
 		}
+		if receivedResults[msg.InstanceID] != "" {
+			fmt.Printf("Received duplicate result from %v\n", msg.InstanceID)
+			return nil
+		}
+		receivedResults[msg.InstanceID] = msg.Batch[0]
+
 		return protocol.Send(h.conn, protocol.NewDataMessage(msg.Batch[0]))
 	})
 }
