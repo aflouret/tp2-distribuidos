@@ -29,17 +29,11 @@ El nombre del archivo de trips que se utilizará se configura en `client/config.
 En el archivo `config.ini` se especifica la cantidad de instancias que se generarán para cada etapa, así como los parámetros de las tres consultas (precipitaciones mínimas, años, distancia mínima).
 
 ### Ejecución:
-Antes de iniciar la ejecución es necesario generar el archivo `compose.yaml` corriendo el siguiente script de python:
 
-```
-python3 create_docker_compose.py
-```
+Para iniciar el sistema, utilizar el script de ejecución como se muestra a continuación:
 
-Luego, ejecutar el siguiente comando para levantar los containers e iniciar el sistema en su totalidad:
-
-```
-docker compose up --build
-```
-
+* ``./tp2.sh build``  Crea las imagenes necesarias.
+* ``./tp2.sh run ``   Inicia el sistema.
+* ``./tp2.sh help``   Info sobre otros comandos.
 
 
